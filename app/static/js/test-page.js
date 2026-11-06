@@ -29,6 +29,7 @@ const passageGroup = document.querySelector("#passage-group");
 const passageSelect = document.querySelector("#passage-select");
 
 const wordCounts = JSON.parse(shell.dataset.wordCounts || "{}");
+const SCHEMA_VERSION = 1;
 
 const config = {
   mode: "time",
@@ -43,6 +44,8 @@ let statusKind = "none";
 let loadToken = 0;
 let abortController = null;
 let capture = null;
+let submitted = false;
+let submitting = false;
 
 function setStatus(message, kind = "info") {
   statusEl.textContent = message;
@@ -116,6 +119,11 @@ const engine = createTypingEngine({
       pressed: result.pressed,
       correct: result.correct,
     });
+    // Passage mode finishes from inside the completing keydown handler. Defer
+    // submission to a microtask so capture.js can record that final accepted
+    // event before submitAttempt() builds the payload; otherwise the server
+    // replays an incomplete buffer and rejects the session.
+    queueMicrotask(submitAttempt);
   },
 });
 
@@ -128,6 +136,8 @@ function handleCaptureCancel(reason) {
   capture.stop();
   capture.reset();
   capture.attach();
+  submitted = false;
+  submitting = false;
   setStatus("Test cancelled. The window lost focus.", "warning");
 }
 
@@ -140,6 +150,83 @@ capture = createCapture({
   onKeyUp: (event) => engine.handleKeyUp(event),
   onCancel: (reason) => handleCaptureCancel(reason),
 });
+
+function clientPlatform() {
+  const reported = navigator.userAgentData?.platform;
+  if (typeof reported === "string" && reported) {
+    return reported;
+  }
+  return navigator.platform || "unknown";
+}
+
+function buildSubmission() {
+  return {
+    schema_version: SCHEMA_VERSION,
+    mode: config.mode,
+    duration_limit_ms: config.mode === "time" ? config.durationMs : null,
+    text_ref: currentTextRef,
+    started_at: capture.getStartedAt() ?? new Date().toISOString(),
+    client: {
+      user_agent: navigator.userAgent || "unknown",
+      platform: clientPlatform(),
+      layout_hint: "unknown",
+    },
+    ignored: capture.getIgnored(),
+    events: capture.getEvents(),
+  };
+}
+
+async function submitAttempt() {
+  if (submitted || submitting) {
+    return;
+  }
+  if (!currentTextRef) {
+    setStatus("The result could not be saved because no text reference is available.", "error");
+    return;
+  }
+
+  submitted = true;
+  submitting = true;
+  setStatus("Saving result…", "info");
+
+  try {
+    const response = await fetch("/api/sessions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify(buildSubmission()),
+    });
+
+    let body = null;
+    try {
+      body = await response.json();
+    } catch (error) {
+      body = null;
+    }
+
+    if (!response.ok) {
+      const message = body?.error?.message
+        || `Could not save the result (${response.status}).`;
+      setStatus(message, "error");
+      submitting = false;
+      return;
+    }
+
+    const resultsUrl = body?.links?.results;
+    if (typeof resultsUrl !== "string" || !resultsUrl) {
+      setStatus("The result was saved but the results link was missing.", "error");
+      submitting = false;
+      return;
+    }
+
+    window.location.assign(resultsUrl);
+  } catch (error) {
+    setStatus("Could not save the result. Check the server and try again.", "error");
+    submitting = false;
+  }
+}
 
 async function fetchJson(url, signal) {
   const response = await fetch(url, {
@@ -231,6 +318,8 @@ async function loadCurrentText({ focus = true } = {}) {
     durationLimitMs: config.mode === "time" ? config.durationMs : null,
   });
   currentTextRef = null;
+  submitted = false;
+  submitting = false;
   viewport.setAttribute("aria-busy", "true");
   setStatus("Loading text…", "info");
 
@@ -288,6 +377,9 @@ async function loadCurrentText({ focus = true } = {}) {
 }
 
 function restart() {
+  if (submitting) {
+    return;
+  }
   if (!engine.getText()) {
     loadCurrentText();
     return;
@@ -302,6 +394,7 @@ function restart() {
   capture.stop();
   capture.reset();
   capture.attach();
+  submitted = false;
   setStatus("");
   focusViewport();
 }

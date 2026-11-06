@@ -1,0 +1,241 @@
+/* components.css — shared UI components used by multiple pages.
+ *
+ * Layer responsibility: presentation only. Every colour comes from tokens.css;
+ * no raw colour values belong here (AGENTS.md §4, docs/UI_DESIGN.md §3).
+ * The results page is the first consumer.
+ */
+
+/* Buttons */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: var(--space-1) var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.4;
+  text-decoration: none;
+  transition: background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease;
+}
+
+.button:hover {
+  border-color: var(--text-muted);
+  background: var(--bg);
+}
+
+.button--primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.button--primary:hover {
+  border-color: var(--accent);
+  background: var(--surface);
+  color: var(--accent);
+}
+
+/* Results page */
+.page-results .site-main {
+  padding-block: var(--space-4) var(--space-6);
+}
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.results__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.results__eyebrow {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.results__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.results__actions--end {
+  justify-content: flex-start;
+}
+
+.hero-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.metric-card--hero {
+  min-height: 160px;
+  justify-content: space-between;
+}
+
+.metric-card__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+}
+
+.metric-card__value {
+  color: var(--text);
+  font-size: var(--font-size-hero);
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-tight);
+}
+
+.results__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--border);
+}
+
+.results__section-title {
+  font-size: var(--font-size-lg);
+}
+
+.metric-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1) var(--space-3);
+  padding-block: var(--space-1);
+  border-bottom: var(--border-width) solid var(--border);
+}
+
+.metric-row:last-child {
+  border-bottom: 0;
+}
+
+.metric-row dt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 62ch;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.metric-row dd {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--font-size-lg);
+  text-align: right;
+}
+
+.metric-list--compact .metric-row {
+  padding-block: var(--space-half);
+}
+
+.metric-list--compact .metric-row dd {
+  font-size: var(--font-size-base);
+}
+
+.metric-note {
+  margin-left: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.metric-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.35em;
+  height: 1.35em;
+  border: var(--border-width) solid var(--border);
+  border-radius: 50%;
+  color: var(--text-muted);
+  cursor: help;
+  font-size: var(--font-size-xs);
+  line-height: 1;
+  user-select: none;
+}
+
+.metric-help:hover,
+.metric-help:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.notice {
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.notice__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+  margin-top: var(--space-1);
+  padding-left: var(--space-2);
+  list-style: disc;
+}
+
+.measurements-note {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.measurements-note p {
+  max-width: 70ch;
+}
+
+.measurements-note__meta {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+@media (max-width: 640px) {
+  .metric-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .metric-row dd {
+    text-align: left;
+  }
+}

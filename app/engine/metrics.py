@@ -62,6 +62,7 @@ class SessionMetrics:
     avg_dwell_ms: float | None
     median_dwell_ms: float | None
     dwell_count: int
+    invalid_dwell_count: int
 
     avg_iki_ms: float | None
     median_iki_ms: float | None
@@ -214,6 +215,11 @@ def compute_metrics(replay: ReplayResult) -> SessionMetrics:
         for sample in replay.dwell_samples
         if not sample.is_backspace and is_valid_dwell(sample.dwell_ms)
     ]
+    invalid_dwell_count = sum(
+        1
+        for sample in replay.dwell_samples
+        if not is_valid_dwell(sample.dwell_ms)
+    )
     if printable_dwells:
         avg_dwell_ms = statistics.fmean(printable_dwells)
         median_dwell_ms = statistics.median(printable_dwells)
@@ -258,6 +264,7 @@ def compute_metrics(replay: ReplayResult) -> SessionMetrics:
         avg_dwell_ms=avg_dwell_ms,
         median_dwell_ms=median_dwell_ms,
         dwell_count=len(printable_dwells),
+        invalid_dwell_count=invalid_dwell_count,
         avg_iki_ms=avg_iki_ms,
         median_iki_ms=median_iki_ms,
         iki_sd_ms=iki_sd_ms,

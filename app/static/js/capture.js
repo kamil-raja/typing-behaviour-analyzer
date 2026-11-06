@@ -74,6 +74,15 @@ export function createCapture({
   let ignored = emptyIgnored();
   let missingUpCount = 0;
   let orphanUpCount = 0;
+  let events = [];
+  let nextSeq = 0;
+
+  function record(eventObject) {
+    const recorded = { seq: nextSeq, ...eventObject };
+    nextSeq += 1;
+    events.push(recorded);
+    return recorded;
+  }
 
   function timestampOf(event) {
     if (Number.isFinite(event.timeStamp)) {
@@ -169,6 +178,16 @@ export function createCapture({
     const accepted = onPrintable(eventObject);
     event.preventDefault();
 
+    if (accepted) {
+      // Record before checking ``active``: the completing keystroke finishes the
+      // test and stops capture from inside onPrintable, but it is still a real
+      // accepted event and must reach the server. test-page.js defers the
+      // submission to a microtask, so this record runs before the payload is
+      // built. The final keyup is intentionally not captured
+      // (docs/EVENT_SCHEMA.md §5).
+      record(eventObject);
+    }
+
     if (accepted && active) {
       if (pending.has(event.code)) {
         missingUpCount += 1;
@@ -185,13 +204,17 @@ export function createCapture({
     if (event.repeat) {
       if (pending.has(event.code)) {
         event.preventDefault();
-        onBackspace({
+        const eventObject = {
           type: "down",
           t: relativeT(timestamp),
           code: event.code,
           key: "Backspace",
           repeat: true,
-        });
+        };
+        const accepted = onBackspace(eventObject);
+        if (accepted) {
+          record(eventObject);
+        }
       }
       return;
     }
@@ -201,13 +224,17 @@ export function createCapture({
       missingUpCount += 1;
     }
     pending.set(event.code, timestamp);
-    onBackspace({
+    const eventObject = {
       type: "down",
       t: relativeT(timestamp),
       code: event.code,
       key: "Backspace",
       repeat: false,
-    });
+    };
+    const accepted = onBackspace(eventObject);
+    if (accepted) {
+      record(eventObject);
+    }
   }
 
   function handleKeyDown(event) {
@@ -277,13 +304,14 @@ export function createCapture({
 
     pending.delete(event.code);
     const timestamp = timestampOf(event);
-    onKeyUp({
+    const recorded = record({
       type: "up",
       t: relativeT(timestamp),
       code: event.code,
       key: null,
       repeat: false,
     });
+    onKeyUp(recorded);
   }
 
   function handlePaste(event) {
@@ -350,6 +378,8 @@ export function createCapture({
     ignored = emptyIgnored();
     missingUpCount = 0;
     orphanUpCount = 0;
+    events = [];
+    nextSeq = 0;
   }
 
   return {
@@ -361,6 +391,7 @@ export function createCapture({
     getFirstTimestamp: () => firstTimestamp,
     getStartedAt: () => startedAt,
     getIgnored: () => ({ ...ignored }),
+    getEvents: () => events.map((event) => ({ ...event })),
     getFallbackCount: () => fallbackCount,
     getDiagnostics: () => ({
       missingUp: missingUpCount,

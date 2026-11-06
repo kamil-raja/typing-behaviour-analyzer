@@ -1,19 +1,55 @@
-"""JSON API routes for text resolution.
+"""JSON API routes.
 
-The endpoint contracts are fixed by ADR-029. Routes delegate to ``app.texts``
-for every stored passage and generated word text; they contain no metric math.
+The text endpoint contracts are fixed by ADR-029. ``POST /api/sessions`` is the
+first vertical slice: it parses the payload, delegates validation to
+``app.validators``, resolves the text through ``app.texts``, runs the pure
+engine, stores the result in memory and returns the documented response shape.
+
+Routes contain no metric math and no SQL.
 """
 
 from __future__ import annotations
 
+import json
 import re
 import secrets
+from dataclasses import asdict
+from typing import Any
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, current_app, jsonify, request, url_for
 
-from ..config import WORD_COUNT_MAX, WORD_COUNT_MIN
-from ..errors import VALIDATION_ERROR, json_error
-from ..texts import TextNotFoundError, generate_words, get_passage, get_passages
+from ..config import (
+    ANALYSIS_VERSION,
+    MAX_SESSION_BODY_BYTES,
+    SESSION_MIN_K,
+    SESSION_MIN_T_MS,
+    WORD_COUNT_MAX,
+    WORD_COUNT_MIN,
+)
+from ..engine import analyze_session
+from ..engine.replay import END_COMPLETED, InvalidEventSequence
+from ..errors import (
+    INCOMPLETE_SESSION,
+    INVALID_EVENT_SEQUENCE,
+    INVALID_JSON,
+    PAYLOAD_TOO_LARGE,
+    SESSION_TOO_SHORT,
+    VALIDATION_ERROR,
+    json_error,
+)
+from ..session_store import STORE_EXTENSION_KEY, InMemorySessionStore, StoredSession
+from ..texts import (
+    TextNotFoundError,
+    generate_words,
+    get_passage,
+    get_passages,
+    resolve_text,
+)
+from ..validators import (
+    PayloadTooLargeError,
+    ValidationError,
+    validate_session_payload,
+)
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -43,6 +79,37 @@ def _invalid_count(problem: str) -> tuple[Response, int]:
         [{"field": "count", "problem": problem}],
         status=422,
     )
+
+
+def _session_metrics(record: StoredSession) -> dict[str, Any]:
+    """Shape the authoritative engine metrics for the submission response.
+
+    This is serialisation only: every number comes from ``SessionMetrics`` or
+    the replay-derived session state.
+    """
+    metrics = asdict(record.analysis.metrics)
+    metrics.update(
+        {
+            "mode": record.mode,
+            "duration_limit_ms": record.duration_limit_ms,
+            "active_duration_ms": record.analysis.replay.active_duration_ms,
+            "end_reason": record.analysis.replay.end_reason,
+            "analysis_version": ANALYSIS_VERSION,
+        }
+    )
+    return metrics
+
+
+def _session_warnings(record: StoredSession) -> list[dict[str, Any]]:
+    """Shape the engine's data-quality warnings for JSON."""
+    return [
+        {
+            "code": warning.code,
+            "count": warning.count,
+            "message": warning.message,
+        }
+        for warning in record.analysis.warnings
+    ]
 
 
 @api_bp.get("/texts/passages")
@@ -106,4 +173,129 @@ def get_word_text() -> Response | tuple[Response, int]:
             "text_ref": {"type": "words", "seed": seed, "count": count},
             "text": generate_words(seed, count),
         }
+    )
+
+
+@api_bp.post("/sessions")
+def create_session() -> Response | tuple[Response, int]:
+    """Validate, resolve, replay and store one submitted typing session."""
+    raw = request.get_data(cache=True)
+    if len(raw) > MAX_SESSION_BODY_BYTES:
+        return json_error(
+            PAYLOAD_TOO_LARGE,
+            "Request body is too large.",
+            [
+                {
+                    "field": "body",
+                    "problem": f"must not exceed {MAX_SESSION_BODY_BYTES} bytes",
+                }
+            ],
+            status=413,
+        )
+
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return json_error(
+            INVALID_JSON,
+            "Request body must be valid JSON.",
+            [{"field": "body", "problem": "is not valid JSON"}],
+            status=400,
+        )
+
+    try:
+        validated = validate_session_payload(
+            payload,
+            body_size_bytes=len(raw),
+        )
+    except PayloadTooLargeError as error:
+        return json_error(
+            error.code,
+            error.message,
+            error.details,
+            status=error.status,
+        )
+    except ValidationError as error:
+        return json_error(
+            error.code,
+            error.message,
+            error.details,
+            status=error.status,
+        )
+
+    try:
+        text = resolve_text(validated.text_ref)
+    except TextNotFoundError as error:
+        return json_error(
+            error.code,
+            error.message,
+            error.details,
+            status=error.status,
+        )
+
+    try:
+        analysis = analyze_session(
+            text=text,
+            mode=validated.mode,
+            duration_limit_ms=validated.duration_limit_ms,
+            events=validated.events,
+        )
+    except InvalidEventSequence as error:
+        return json_error(
+            INVALID_EVENT_SEQUENCE,
+            "The event sequence is invalid.",
+            [{"field": "events", "problem": str(error)}],
+            status=422,
+        )
+
+    if validated.mode == "passage" and analysis.replay.end_reason != END_COMPLETED:
+        return json_error(
+            INCOMPLETE_SESSION,
+            "The passage was not completed.",
+            [
+                {
+                    "field": "events",
+                    "problem": "the final buffer does not match the passage",
+                }
+            ],
+            status=422,
+        )
+
+    if (
+        analysis.replay.K < SESSION_MIN_K
+        or analysis.replay.active_duration_ms < SESSION_MIN_T_MS
+    ):
+        return json_error(
+            SESSION_TOO_SHORT,
+            "This session is too short to save.",
+            [
+                {
+                    "field": "events",
+                    "problem": (
+                        f"K must be at least {SESSION_MIN_K} and T must be "
+                        f"at least {SESSION_MIN_T_MS} ms"
+                    ),
+                }
+            ],
+            status=422,
+        )
+
+    store: InMemorySessionStore = current_app.extensions[STORE_EXTENSION_KEY]
+    record = store.create(validated, analysis)
+
+    return (
+        jsonify(
+            {
+                "session_id": record.session_id,
+                "metrics": _session_metrics(record),
+                "warnings": _session_warnings(record),
+                "links": {
+                    "results": url_for(
+                        "pages.results_page",
+                        session_id=record.session_id,
+                    )
+                },
+            }
+        ),
+        201,
     )

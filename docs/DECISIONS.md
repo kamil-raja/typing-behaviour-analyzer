@@ -341,6 +341,31 @@ P0-D1-05 will map expected characters through `CHAR_TO_CODE` and merge the two m
 - Tests for the pulled-forward surface live in `tests/test_api.py`; `tests/test_infrastructure.py` expects `GET /` to return 200 and includes the new static assets.
 **Consequences:** The typing screen is reachable and usable now, but a finished attempt only shows client-side provisional numbers. The server remains the sole owner of final metrics, as required by AGENTS.md §3.
 
+### ADR-031: Client event accumulation and one-shot session submission
+**Date:** 2026-11-06
+**Status:** Approved
+**Context:** The server's `POST /api/sessions` contract requires the complete accepted event sequence (downs and ups in order) and rejects client-supplied `ended_at_ms`/`end_reason`. The typing engine previously kept only counters and the final buffer. Passage mode finishes from inside the completing keydown handler, before the capture layer has recorded that event.
+**Decision:**
+- `app/static/js/capture.js` owns accepted-event accumulation. It assigns a contiguous `seq` at record time and records only events the engine accepts. `getEvents()` returns shallow copies so callers cannot mutate the attempt.
+- `app/static/js/test-page.js` builds the documented payload from capture state: `schema_version`, `mode`, `duration_limit_ms`, `text_ref`, `started_at`, `client` (with `layout_hint: "unknown"`), `ignored`, and `events`. It never sends the text body, `ended_at_ms` or `end_reason`.
+- Submission is one-shot: `submitted`/`submitting` guards prevent duplicate posts, and a failed post resets only `submitting` so the user can start a new attempt.
+- `onFinish` defers `submitAttempt()` with `queueMicrotask`. This lets capture record the completing keydown before the payload is serialised. Without the deferral, a completed passage is submitted one character short and the server returns `INCOMPLETE_SESSION`.
+- The final keyup remains intentionally uncaptured (`docs/EVENT_SCHEMA.md` §5); replay reports `open_at_end`.
+**Consequences:** Final metrics are always derived from the authoritative replay of the captured events. A regression test asserts the microtask deferral and the absence of a synchronous `submitAttempt()` call.
+
+### ADR-032: In-memory session store, POST response shape and results routing
+**Date:** 2026-11-06
+**Status:** Approved
+**Context:** P0-D1-10 needs a session id and a results page before database persistence exists (P0-D2-01/02). The blueprint fixes `201 { session_id, metrics, warnings, links }` but not the pre-persistence storage mechanism.
+**Decision:**
+- `app/session_store.py` provides a thread-safe, process-local `InMemorySessionStore`, attached as `app.extensions["tba_session_store"]` in `create_app()`. Each application instance owns an isolated store, which keeps tests independent.
+- Session ids are `uuid4().hex`; `created_at` is UTC ISO-8601 with a `Z` suffix. Records are lost when the process restarts; P0-D2-02 replaces this store with the SQLite repository.
+- `metrics` is `asdict(SessionMetrics)` plus `mode`, `duration_limit_ms`, `active_duration_ms`, `end_reason`, and `analysis_version` (`ANALYSIS_VERSION = 1`).
+- `warnings` contains only non-zero tolerated conditions: `orphan_up`, `missing_up`, `open_at_end`, `invalid_dwell`, `dropped_after_end`. `invalid_dwell_count` was added to `SessionMetrics`, and `DataQualityWarning` plus `warnings` were added to `SessionAnalysis`.
+- `GET /results/<session_id>` renders the stored analysis server-side. Unknown ids return 404. There is no `GET /api/sessions/<id>` yet; that endpoint belongs to P0-D2-03.
+- Routes and templates contain no metric math. The API only serialises engine output.
+**Consequences:** The full type → submit → results flow works without a database. The results page is temporary but already reads the same server-computed values the persisted version will expose.
+
 ---
 
 ## Open Ambiguities

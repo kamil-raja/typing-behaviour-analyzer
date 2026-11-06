@@ -3,6 +3,10 @@
 The engine is pure Python: it performs no HTTP calls and no database access.
 Replay reconstructs the buffer in :mod:`app.engine.replay`; the metric formulas
 live in :mod:`app.engine.metrics`.
+
+``analyze_session()`` also reports the tolerated data-quality conditions listed
+in ``TBA_BLUEPRINT_v3_FINAL.md`` §6.3 as explicit warnings. They are diagnostic
+statements about the submitted event stream, never metric calculations.
 """
 
 from __future__ import annotations
@@ -22,6 +26,15 @@ from app.engine.replay import ReplayResult, replay_events
 
 
 @dataclass(frozen=True)
+class DataQualityWarning:
+    """One tolerated data-quality condition with its occurrence count."""
+
+    code: str
+    count: int
+    message: str
+
+
+@dataclass(frozen=True)
 class SessionAnalysis:
     """The full engine result for one validated session.
 
@@ -36,6 +49,46 @@ class SessionAnalysis:
     metrics: SessionMetrics
     key_stats: KeyStats
     session_key_stats: dict[str, SessionKeyStat]
+    warnings: tuple[DataQualityWarning, ...]
+
+
+def _data_quality_warnings(
+    replay: ReplayResult,
+    metrics: SessionMetrics,
+) -> tuple[DataQualityWarning, ...]:
+    """Describe the tolerated replay conditions that actually occurred."""
+    conditions = (
+        (
+            "orphan_up",
+            replay.orphan_up,
+            "Key releases without a matching keypress were ignored.",
+        ),
+        (
+            "missing_up",
+            replay.missing_up,
+            "Keypresses without a matching key release were recorded.",
+        ),
+        (
+            "open_at_end",
+            replay.open_at_end,
+            "Keys were still held when the test ended.",
+        ),
+        (
+            "invalid_dwell",
+            metrics.invalid_dwell_count,
+            "Dwell times outside 0-1000 ms were excluded.",
+        ),
+        (
+            "dropped_after_end",
+            replay.dropped_after_end,
+            "Events after the test ended were ignored.",
+        ),
+    )
+    return tuple(
+        DataQualityWarning(code=code, count=count, message=message)
+        for code, count, message in conditions
+        if count > 0
+    )
 
 
 def analyze_session(
@@ -52,9 +105,11 @@ def analyze_session(
         events=events,
     )
     key_stats = compute_key_stats(replay)
+    metrics = compute_metrics(replay)
     return SessionAnalysis(
         replay=replay,
-        metrics=compute_metrics(replay),
+        metrics=metrics,
         key_stats=key_stats,
         session_key_stats=merge_session_key_stats(key_stats),
+        warnings=_data_quality_warnings(replay, metrics),
     )

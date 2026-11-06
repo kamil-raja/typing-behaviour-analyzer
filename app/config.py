@@ -30,6 +30,9 @@ IKI_HIST_BIN_WIDTH_MS = 25
 # Dwell heatmap mode [P1].
 DWELL_LONG_RATIO = 1.25
 
+# Derived-analysis identity (TBA blueprint §9, ADR-015).
+ANALYSIS_VERSION = 1
+
 # Session payload validation (docs/EVENT_SCHEMA.md §6–§7).
 SUPPORTED_SCHEMA_VERSION = 1
 MIN_SESSION_EVENTS = 2

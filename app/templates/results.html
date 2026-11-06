@@ -1,0 +1,310 @@
+{% extends "base.html" %}
+
+{% macro number(value, digits=1) -%}
+  {%- if value is none -%}—{%- else -%}{{ value|round(digits) }}{%- endif -%}
+{%- endmacro %}
+
+{% macro help(text) -%}
+  <span class="metric-help" tabindex="0" title="{{ text }}">?</span>
+{%- endmacro %}
+
+{% block title %}Results · Typing Behaviour Analyzer{% endblock %}
+{% block description %}Server-computed metrics for one typing test session.{% endblock %}
+{% block body_class %}page-results{% endblock %}
+
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="results" aria-labelledby="results-heading">
+  <header class="results__header">
+    <p class="results__eyebrow">Results</p>
+    <h1 class="page-title" id="results-heading">Typing test result</h1>
+    <p class="page-lede">
+      {% if session.mode == "time" %}
+        Time mode · {{ (session.duration_limit_ms / 1000)|round(0)|int }} s limit
+      {% else %}
+        Passage mode
+      {% endif %}
+      · saved {{ session.created_at }}
+    </p>
+    <p class="results__actions">
+      <a class="button button--primary" href="/">New test</a>
+    </p>
+  </header>
+
+  <div class="hero-grid">
+    <article class="metric-card metric-card--hero">
+      <h2 class="metric-card__label">
+        Net WPM
+        {{ help("Correct characters remaining in the final text, divided by five and by the active duration in minutes.") }}
+      </h2>
+      <p class="metric-card__value numeric">{{ number(metrics.net_wpm) }}</p>
+    </article>
+
+    <article class="metric-card metric-card--hero">
+      <h2 class="metric-card__label">
+        Accuracy
+        {{ help("Keystroke accuracy: correct accepted keystrokes divided by all accepted printable keystrokes. Corrected mistakes still count against it.") }}
+      </h2>
+      <p class="metric-card__value numeric">
+        {%- if metrics.accuracy_pct is none -%}
+          —
+        {%- else -%}
+          {{ number(metrics.accuracy_pct) }}%
+        {%- endif -%}
+      </p>
+    </article>
+  </div>
+
+  <section class="results__section" aria-labelledby="supporting-heading">
+    <h2 class="results__section-title" id="supporting-heading">Supporting metrics</h2>
+    <dl class="metric-list">
+      <div class="metric-row">
+        <dt>
+          Gross WPM
+          {{ help("All accepted printable keystrokes, including wrong attempts and characters later deleted, divided by five and by the active duration in minutes.") }}
+        </dt>
+        <dd class="numeric">{{ number(metrics.gross_wpm) }}</dd>
+      </div>
+
+      <div class="metric-row">
+        <dt>
+          Timing consistency (interval-based)
+          {{ help("A descriptive index from the variation of valid inter-key intervals: 100 times one minus the coefficient of variation. It is not a validated measure.") }}
+        </dt>
+        <dd class="numeric">
+          {%- if metrics.consistency_score is none -%}
+            —
+          {%- else -%}
+            {{ number(metrics.consistency_score) }}
+            <span class="metric-note">CV {{ number(metrics.iki_cv, 2) }}</span>
+          {%- endif -%}
+        </dd>
+      </div>
+
+      <div class="metric-row">
+        <dt>
+          Corrected errors (Ec)
+          {{ help("Wrong keystrokes that were deleted and whose position holds the correct character in the final text.") }}
+        </dt>
+        <dd class="numeric">{{ metrics.corrected_errors }}</dd>
+      </div>
+
+      <div class="metric-row">
+        <dt>
+          Uncorrected errors (U)
+          {{ help("Wrong characters still present in the final text.") }}
+        </dt>
+        <dd class="numeric">{{ metrics.uncorrected_errors }}</dd>
+      </div>
+
+      {% if metrics.erased_unresolved_errors > 0 %}
+      <div class="metric-row">
+        <dt>
+          Erased, not retyped correctly (Eu)
+          {{ help("Wrong keystrokes that were deleted but whose position is empty or still wrong in the final text.") }}
+        </dt>
+        <dd class="numeric">{{ metrics.erased_unresolved_errors }}</dd>
+      </div>
+      {% endif %}
+
+      <div class="metric-row">
+        <dt>
+          Backspaces (deletions)
+          {{ help("Effective deletions, including held-key repeats. Backspace presses: " ~ metrics.backspace_presses ~ ".") }}
+        </dt>
+        <dd class="numeric">{{ metrics.backspace_count }}</dd>
+      </div>
+
+      <div class="metric-row">
+        <dt>
+          Active duration
+          {{ help("Time from the first accepted keystroke to completion or to the timer limit.") }}
+        </dt>
+        <dd class="numeric">{{ (replay.active_duration_ms / 1000)|round(2) }} s</dd>
+      </div>
+    </dl>
+  </section>
+
+  <section class="results__section" aria-labelledby="timing-heading">
+    <h2 class="results__section-title" id="timing-heading">Detail and timing</h2>
+    <dl class="metric-list">
+      <div class="metric-row">
+        <dt>
+          Average dwell
+          {{ help("Mean time a printable key was held down, measured from valid keydown/keyup pairs. Backspace is excluded.") }}
+        </dt>
+        <dd class="numeric">
+          {%- if metrics.avg_dwell_ms is none -%}
+            —
+          {%- else -%}
+            {{ number(metrics.avg_dwell_ms) }} ms
+          {%- endif -%}
+        </dd>
+      </div>
+
+      <div class="metric-row">
+        <dt>
+          Average IKI
+          {{ help("Mean valid inter-key interval: the time between consecutive timed actions, excluding pauses and zero intervals. Shown only when at least five valid intervals exist.") }}
+        </dt>
+        <dd class="numeric">
+          {%- if metrics.avg_iki_ms is none -%}
+            —
+          {%- else -%}
+            {{ number(metrics.avg_iki_ms) }} ms
+          {%- endif -%}
+        </dd>
+      </div>
+
+      <div class="metric-row">
+        <dt>
+          Median IKI
+          {{ help("Median valid inter-key interval. Shown only when at least five valid intervals exist.") }}
+        </dt>
+        <dd class="numeric">
+          {%- if metrics.median_iki_ms is none -%}
+            —
+          {%- else -%}
+            {{ number(metrics.median_iki_ms) }} ms
+          {%- endif -%}
+        </dd>
+      </div>
+
+      <div class="metric-row">
+        <dt>
+          Pause count
+          {{ help("Intervals of at least 1000 ms between consecutive timed actions.") }}
+        </dt>
+        <dd class="numeric">{{ metrics.pause_count }}</dd>
+      </div>
+
+      <div class="metric-row">
+        <dt>
+          Total pause time
+          {{ help("Sum of all pause-class intervals.") }}
+        </dt>
+        <dd class="numeric">{{ number(metrics.total_pause_ms) }} ms</dd>
+      </div>
+
+      <div class="metric-row">
+        <dt>
+          Longest pause
+          {{ help("Longest single pause-class interval. Shown as unavailable when the session contains no pauses.") }}
+        </dt>
+        <dd class="numeric">
+          {%- if metrics.longest_pause_ms is none -%}
+            —
+          {%- else -%}
+            {{ number(metrics.longest_pause_ms) }} ms
+          {%- endif -%}
+        </dd>
+      </div>
+    </dl>
+  </section>
+
+  <section class="results__section" aria-labelledby="more-heading">
+    <h2 class="results__section-title" id="more-heading">More detail</h2>
+    <dl class="metric-list metric-list--compact">
+      <div class="metric-row">
+        <dt>Final-text accuracy {{ help("Correct characters in the final text divided by its length. Unavailable when the final text is empty.") }}</dt>
+        <dd class="numeric">
+          {%- if metrics.final_accuracy_pct is none -%}
+            —
+          {%- else -%}
+            {{ number(metrics.final_accuracy_pct) }}%
+          {%- endif -%}
+        </dd>
+      </div>
+      <div class="metric-row">
+        <dt>Error rate {{ help("Incorrect accepted keystrokes divided by all accepted printable keystrokes.") }}</dt>
+        <dd class="numeric">
+          {%- if metrics.error_rate is none -%}
+            —
+          {%- else -%}
+            {{ number(metrics.error_rate) }}%
+          {%- endif -%}
+        </dd>
+      </div>
+      <div class="metric-row">
+        <dt>Keystrokes (K) {{ help("Accepted printable keystrokes.") }}</dt>
+        <dd class="numeric">{{ metrics.total_keystrokes }}</dd>
+      </div>
+      <div class="metric-row">
+        <dt>Correct keystrokes (C) {{ help("Accepted printable keystrokes that matched the expected character at the moment they were typed.") }}</dt>
+        <dd class="numeric">{{ metrics.correct_keystrokes }}</dd>
+      </div>
+      <div class="metric-row">
+        <dt>Incorrect keystrokes (E) {{ help("Accepted printable keystrokes that did not match the expected character.") }}</dt>
+        <dd class="numeric">{{ metrics.incorrect_keystrokes }}</dd>
+      </div>
+      <div class="metric-row">
+        <dt>Final length (N) {{ help("Number of characters remaining in the final typed text.") }}</dt>
+        <dd class="numeric">{{ metrics.final_length }}</dd>
+      </div>
+      <div class="metric-row">
+        <dt>Median dwell {{ help("Median time a printable key was held down.") }}</dt>
+        <dd class="numeric">
+          {%- if metrics.median_dwell_ms is none -%}
+            —
+          {%- else -%}
+            {{ number(metrics.median_dwell_ms) }} ms
+          {%- endif -%}
+        </dd>
+      </div>
+      <div class="metric-row">
+        <dt>Dwell samples {{ help("Number of valid printable keydown/keyup pairs used for the dwell figures.") }}</dt>
+        <dd class="numeric">{{ metrics.dwell_count }}</dd>
+      </div>
+      <div class="metric-row">
+        <dt>IKI standard deviation {{ help("Sample standard deviation of the valid inter-key intervals.") }}</dt>
+        <dd class="numeric">
+          {%- if metrics.iki_sd_ms is none -%}
+            —
+          {%- else -%}
+            {{ number(metrics.iki_sd_ms) }} ms
+          {%- endif -%}
+        </dd>
+      </div>
+      <div class="metric-row">
+        <dt>Valid intervals (V) {{ help("Intervals longer than zero and shorter than 1000 ms. They are the single list behind every interval statistic.") }}</dt>
+        <dd class="numeric">{{ metrics.iki_valid_count }}</dd>
+      </div>
+    </dl>
+  </section>
+
+  {% if warnings or metrics.zero_interval_count > 0 %}
+  <section class="results__section" aria-labelledby="quality-heading">
+    <h2 class="results__section-title" id="quality-heading">Data quality</h2>
+    <div class="notice">
+      <p>Some event-stream details were tolerated rather than rejected:</p>
+      <ul class="notice__list">
+        {% if metrics.zero_interval_count > 0 %}
+        <li>{{ metrics.zero_interval_count }} interval(s) of zero length were excluded from the interval statistics.</li>
+        {% endif %}
+        {% for warning in warnings %}
+        <li>{{ warning.message }} ({{ warning.count }})</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="results__section measurements-note" aria-labelledby="measurements-heading">
+    <h2 class="results__section-title" id="measurements-heading">About the measurements</h2>
+    <p>
+      Timing is observed by the browser while you type. It is not laboratory-grade:
+      keyboard hardware, the operating system and browser scheduling add variation.
+      Use these figures for relative comparison on the same machine and browser, not
+      as absolute measurements.
+    </p>
+    <p class="measurements-note__meta numeric">analysis version {{ analysis_version }}</p>
+  </section>
+
+  <p class="results__actions results__actions--end">
+    <a class="button button--primary" href="/">Take another test</a>
+  </p>
+</section>
+{% endblock %}
