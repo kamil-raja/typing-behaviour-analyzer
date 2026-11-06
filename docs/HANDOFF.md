@@ -37,10 +37,10 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 | Field | Value |
 |---|---|
 | **Branch** | `feature/project-foundation` |
-| **Status** | Uncommitted P0-D1-06 changes: new `app/validators.py` and `tests/test_validators.py`; modified `app/config.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md` |
-| **Last commit** | `55130e1 feat(engine): implement key statistics and heatmap classification` (P0-D1-05, committed externally) |
+| **Status** | Uncommitted P0-D1-07 changes: new `app/data/passages.json`, `app/data/words_en.json`, `app/texts.py`, `tests/test_texts.py`; modified `app/__init__.py`, `app/config.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md` |
+| **Last commit** | `1c0137a feat(validation): implement session payload validators` (P0-D1-06, committed externally) |
 | **Tags** | None yet |
-| **Commit/push** | **None performed by this agent in P0-D1-06.** P0-D1-01 was committed in `9c02975`; P0-D1-02 in `147ec1e`; P0-D1-03 in `e9e2215`; P0-D1-04 in `61d8c36`; P0-D1-05 in `55130e1`. The branch is 4 commits ahead of `origin/feature/project-foundation`; nothing was pushed. |
+| **Commit/push** | **None performed by this agent in P0-D1-07.** P0-D1-01 was committed in `9c02975`; P0-D1-02 in `147ec1e`; P0-D1-03 in `e9e2215`; P0-D1-04 in `61d8c36`; P0-D1-05 in `55130e1`; P0-D1-06 in `1c0137a`. The branch is 5 commits ahead of `origin/feature/project-foundation`; nothing was pushed. |
 
 `.venv/`, `__pycache__/`, and `instance/` are ignored and are not part of the working-tree changes.
 
@@ -130,6 +130,24 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 - Validation errors aggregate: every failing field gets its own `{field, problem}` detail where structurally possible.
 - `pytest tests/ -v`: **314 passed** (124 previous + 190 validator cases).
 
+### Completed This Session — P0-D1-07 Text Resolution
+
+| File | Purpose |
+|---|---|
+| `app/data/passages.json` | 12 original ASCII passages (`p_001`–`p_012`, 222–260 characters each) with frozen order |
+| `app/data/words_en.json` | 200 unique lowercase `a-z` words in a frozen order |
+| `app/texts.py` | Cached loaders, `get_passage()`, `resolve_text()`, `generate_words()`, `words_for_duration()`, `validate_text_sources()`, `Passage`, `TextNotFoundError`, `TextSourceError` |
+| `app/__init__.py` | `create_app()` now calls `validate_text_sources()` before returning the app |
+| `app/config.py` | Added `WORDS_FOR_DURATION_MS = {15000: 120, 30000: 200, 60000: 350}` |
+| `tests/test_texts.py` | 76 cases: content contract, frozen seed mapping, count/duration boundaries, passage/word resolution, `TEXT_NOT_FOUND`, malformed sources, startup wiring, engine integration |
+| `docs/DECISIONS.md` | ADR-027 (author-approved original content, frozen ordering, generator, duration sizing, startup guard); AMB-001/AMB-002 marked resolved |
+
+- All twelve passages are original prose written for this project, not copied from Monkeytype, Keybr or public-domain sources. The author approved authoring them in-session; editorial review remains theirs.
+- Generation is frozen as shuffle-and-extend: `rng.shuffle()` cycles the 200-word list until `count` (10–400) is reached, then joins with single spaces. For `count <= 200` this is exactly one shuffle plus a slice.
+- `resolve_text({"type": "passage", "id": ...})` returns the stored text; an unknown id raises `TextNotFoundError` with `code == TEXT_NOT_FOUND` and `status == 404`. Word refs delegate to `generate_words(seed, count)`.
+- `validate_text_sources()` rejects unreadable/invalid JSON, malformed structure, duplicate passage ids, empty strings, any character outside ASCII 32–126 (including newline/tab), and words that are not lowercase `a-z`.
+- `pytest tests/ -v`: **390 passed** (314 previous + 76 text-resolution cases).
+
 ### Environment
 
 | Field | Value |
@@ -150,42 +168,43 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 - `python run.py` starts on `http://127.0.0.1:5000` with debug mode on.
 - `GET /` returns **404** — expected because no routes exist yet.
 - `json_error()` verified for `VALIDATION_ERROR` (422 with supplied details) and `INVALID_JSON` (400 with empty details).
-- `pytest tests/ -v`: **314 passed** (7 fixture-structure checks, 1 fixture-G check, 2 conftest fixture checks, 24 replay tests, 57 metric tests, 33 key tests, 190 validator cases).
-- `tests/` now contains the conftest, seven golden JSON fixtures, fixture checks, replay tests, metric tests, key-map/classification tests, and validator tests.
+- `pytest tests/ -v`: **390 passed** (7 fixture-structure checks, 1 fixture-G check, 2 conftest fixture checks, 24 replay tests, 57 metric tests, 33 key tests, 190 validator cases, 76 text-resolution cases).
+- `tests/` now contains the conftest, seven golden JSON fixtures, fixture checks, replay tests, metric tests, key-map/classification tests, validator tests, and text-resolution tests.
 - No compatibility issues with Python 3.14.7. Flask's deprecated `__version__` was used only in an ad-hoc check, not in project code.
 
 ---
 
 ## Exact Next Task
 
-**Task ID:** P0-D1-07
-**Title:** Text resolution
+**Task ID:** P0-D1-08
+**Title:** Frontend — themes and CSS tokens
 
 **Scope (from `docs/TASKS.md`):**
-1. Create `app/data/passages.json` (~12 passages, original or public-domain, ASCII 32–126 only).
-2. Create `app/data/words_en.json` (~200 common English words, lowercase ASCII).
-3. Implement `app/texts.py`: passage loader + getter, deterministic word generator (`random.Random(seed).shuffle()` over a fixed word list), word-count sizing (15 s → 120 words, 30 s → 200, 60 s → 350), and a startup ASCII assertion (fail loudly on any char outside 32–126).
-4. Add the startup assertion to `create_app()`.
+1. Create `app/static/css/tokens.css` with all light and dark design tokens per `docs/UI_DESIGN.md` §3.
+2. Create `app/static/css/base.css` (reset, body, nav, typography).
+3. Add the inline blocking theme script in `<head>` (reads `localStorage["tba-theme"]` before the stylesheet).
+4. Create `app/templates/base.html` with nav, theme toggle, font links and CSS imports.
+5. Vendor Lexend and JetBrains Mono into `app/static/fonts/` and Chart.js UMD into `app/static/vendor/chart.umd.min.js` (offline; no CDN).
 
 **Starting point:**
-- `app/validators.py` now returns a `ValidatedSessionPayload` with a structural `text_ref`; do not resolve text there. An unknown id/seed must become `TEXT_NOT_FOUND`, not `VALIDATION_ERROR` (ADR-026).
-- `app/errors.py` already defines `TEXT_NOT_FOUND` and `json_error()`.
-- `app/engine/analyze_session(text=..., mode=..., duration_limit_ms=..., events=...)` expects the resolved text as a string.
-- `AMB-001` and `AMB-002` still need content approval; original ASCII text is acceptable per `AGENTS.md` §11.
-- No routes exist yet, so text resolution is exercised directly from `app.texts` in tests.
+- `create_app()` now validates text sources on startup; tests that construct custom apps must keep the guard satisfied or monkeypatch it.
+- No templates, static files, routes or frontend exist yet.
+- `app/texts.py` exposes `resolve_text()`, `get_passages()` and `generate_words()` for the later text endpoints.
+- Content is frozen: do not edit `passages.json` or `words_en.json` ordering without a new ADR (ADR-027).
+- `docs/UI_DESIGN.md` is the authoritative design source; use its tokens, not hex literals in component CSS.
 
 ---
 
 ## Outstanding Issues for the Next Agent
 
-1. **Word list and passage texts** are missing (`AMB-001`, `AMB-002`); handle in P0-D1-07.
+1. **Passage and word content now exists** (ADR-027) and is frozen for reproducibility. The twelve passages are original, author-approved in approach, but still need the author's editorial review before release. Do not reorder or rewrite either file without a new ADR.
 2. **`ended_at_ms`/`end_reason` are rejected** under ADR-025, even when `null`. Do not relax this without a new decision.
 3. **The timer boundary belongs to replay**, not validation (ADR-026). The validator accepts `t >= duration_limit_ms`; `replay_events()` excludes those events and sets `time_up`. Do not move this rule into the validator.
-4. **Validation limits live in `app/config.py`.** `SUPPORTED_SCHEMA_VERSION`, `MIN/MAX_SESSION_EVENTS`, `MAX_SESSION_BODY_BYTES` (2 MiB), `ALLOWED_TIME_LIMITS_MS`, `WORD_COUNT_MIN/MAX` are named constants; do not hard-code them in routes.
+4. **Validation limits and duration sizing live in `app/config.py`.** `SUPPORTED_SCHEMA_VERSION`, `MIN/MAX_SESSION_EVENTS`, `MAX_SESSION_BODY_BYTES` (2 MiB), `ALLOWED_TIME_LIMITS_MS`, `WORD_COUNT_MIN/MAX` and `WORDS_FOR_DURATION_MS` are named constants; do not hard-code them in routes.
 5. **`docs/UI_DESIGN.md` §7** references `docs/METRICS.md` §6 for the Wilson heuristic; it should be §12. Correct during UI documentation cleanup.
 6. **`README.md`** is absent; leave for P0-D3-05.
 7. **`app/routes/__init__.py`** is not specified; decide when implementing routes.
-8. **P0-D1-06 changes are uncommitted.** HEAD is `55130e1` (P0-D1-05, committed externally). The branch is 4 commits ahead of `origin/feature/project-foundation`; do not commit or push without approval.
+8. **P0-D1-07 changes are uncommitted.** HEAD is `1c0137a` (P0-D1-06, committed externally). The branch is 5 commits ahead of `origin/feature/project-foundation`; do not commit or push without approval.
 9. **Fixture A's IKI values are null by decision.** The §13 row's mean/SD arithmetic conflicts with §8.5; the author ruled §8.5 wins (ADR-023). Do not "fix" this by restoring `800.0`/`0.0`.
 10. **`session_key_stats` rows are ready for persistence but not yet stored.** P0-D2-02 owns the repository insert; `SessionKeyStat` field names match the blueprint §9 columns exactly.
 11. **Heatmap classification is not yet wired to an endpoint.** `classify_observation()` and `pooled_baseline_error_rate()` are reused by P0-D3-01; do not duplicate the formula in routes or SQL.

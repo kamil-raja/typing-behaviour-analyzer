@@ -38,3 +38,11 @@ MAX_SESSION_BODY_BYTES = 2 * 1024 * 1024
 ALLOWED_TIME_LIMITS_MS = frozenset({15_000, 30_000, 60_000})
 WORD_COUNT_MIN = 10
 WORD_COUNT_MAX = 400
+
+# Word-mode text sizing (TBA blueprint §4.2). Time-mode texts are padded so early
+# completion is practically unreachable while the completion rule stays defined.
+WORDS_FOR_DURATION_MS = {
+    15_000: 120,
+    30_000: 200,
+    60_000: 350,
+}

@@ -7,9 +7,9 @@
 
 ## Current Status
 
-**Phase: Implementation in progress — P0-D1-01 through P0-D1-06 complete.**
+**Phase: Implementation in progress — P0-D1-01 through P0-D1-07 complete.**
 
-Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic and the session-payload validator now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. Text resolution is the next task (P0-D1-07).
+Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic, the session-payload validator and text resolution now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. `app/texts.py` resolves passages and deterministic word-mode text and guards all content at startup. The frontend theme/CSS layer is the next task (P0-D1-08).
 
 ---
 
@@ -90,8 +90,19 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 - [x] Created `tests/test_validators.py`: 57 test functions (190 cases) covering Unicode keys/codes, space/tilde acceptance, enums, seq gaps, oversized lists/event lists, forbidden end fields and both halves of the timer-boundary contract
 - [x] `pytest tests/ -v`: **314 passed** (124 previous + 190 new validator cases)
 
+### Text resolution (2026-11-06)
+- [x] P0-D1-07: Created `app/data/passages.json` with 12 original ASCII passages (`p_001`–`p_012`, 222–260 characters each)
+- [x] Created `app/data/words_en.json` with 200 unique lowercase `a-z` words in a frozen order
+- [x] Created `app/texts.py`: cached loaders, `get_passage()`, `resolve_text()`, `generate_words()`, `words_for_duration()`, `validate_text_sources()` and `TextNotFoundError`/`TextSourceError`
+- [x] Froze the documented `random.Random(seed).shuffle()` generator, including repeat-cycling when `count` exceeds the 200-word source (ADR-027)
+- [x] Added `WORDS_FOR_DURATION_MS = {15000: 120, 30000: 200, 60000: 350}` to `app/config.py`
+- [x] Wired the startup ASCII/lowercase guard into `create_app()`; invalid content aborts startup
+- [x] Added `tests/test_texts.py`: 76 cases covering content contract, frozen seed mapping, count/duration boundaries, resolution, `TEXT_NOT_FOUND`, malformed sources and application wiring
+- [x] Resolved `AMB-001` and `AMB-002` under ADR-027 (author-approved original content)
+- [x] `pytest tests/ -v`: **390 passed** (314 previous + 76 text-resolution cases)
+
 ### Application code
-- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, and P0-D1-06 validators; no routes, database, or frontend yet
+- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, and P0-D1-07 text resolution; no routes, database, or frontend yet
 
 ---
 
@@ -105,7 +116,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 | P0-D1-04: Engine — metrics | ✅ Complete (2026-11-06) |
 | P0-D1-05: Engine — key stats / heatmap | ✅ Complete (2026-11-06) |
 | P0-D1-06: Validators | ✅ Complete (2026-11-06) |
-| P0-D1-07: Text resolution | ⬜ Not started |
+| P0-D1-07: Text resolution | ✅ Complete (2026-11-06) |
 | P0-D1-08: Frontend — themes / CSS | ⬜ Not started |
 | P0-D1-09: Frontend — capture / typing engine | ⬜ Not started |
 | P0-D1-10: First vertical slice | ⬜ Not started |
@@ -128,25 +139,25 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 
 **Day 1 vertical slice:** by end of Day 1, a user should be able to type, submit, and see metrics — even without DB persistence. The engine must pass all golden fixtures (A–G).
 
-Exact next task: **P0-D1-07** — text resolution (`app/texts.py`, `app/data/passages.json`, `app/data/words_en.json`, startup ASCII assertion).
+Exact next task: **P0-D1-08** — frontend themes and CSS tokens (`app/static/css/tokens.css`, `base.css`, theme script, `base.html`, fonts, Chart.js vendor).
 
 ---
 
 ## Blockers / Ambiguities
 
 See `docs/DECISIONS.md` for open ambiguities:
-- **AMB-001:** Word list content not yet finalised (needs author approval)
-- **AMB-002:** Passage texts not yet provided (needs author to write/approve them)
-- **AMB-003:** Passage selector label format (minor, can be decided during implementation)
+- **AMB-001:** ✅ Resolved by ADR-027 (200-word list frozen; author editorial review pending before release)
+- **AMB-002:** ✅ Resolved by ADR-027 (12 original ASCII passages; author editorial review pending before release)
+- **AMB-003:** Passage selector label format (minor; use first ~40 characters per ADR-027)
 - **AMB-004:** Moving average window behaviour at < 5 sessions (assumed trailing window with expanding for early sessions)
 
 ### Known issues carried forward
 - Per-key attribution is resolved: `metrics.py` still returns the two raw maps (ADR-022), and `keys.merge_session_key_stats()` now produces the `key_code`-keyed rows (ADR-024). `SessionAnalysis` exposes both forms.
 - The fixture-A IKI contradiction is closed under ADR-023; `golden_a.json` now expects null IKI statistics because `|V| = 3 < 5`.
-- Word list and passage texts are missing; handle in P0-D1-07.
+- Passage and word content now exists; changing either file's content or ordering requires a new ADR because seed→text mappings must stay reproducible (ADR-027). The authored passages still need the author's editorial review before release.
 - The timer boundary is resolved under ADR-026: the validator accepts events at `t >= duration_limit_ms`; replay excludes them and ends with `time_up`. Tests cover both halves.
 - Client-supplied `ended_at_ms`/`end_reason` are rejected under ADR-025; a conforming client never sends them.
-- Application limits outside `docs/METRICS.md` §14 are now centralised in `app/config.py` (schema version, event counts, 2 MiB body, allowed durations, word-count range).
+- Application limits outside `docs/METRICS.md` §14 are now centralised in `app/config.py` (schema version, event counts, 2 MiB body, allowed durations, word-count range, duration→word sizing).
 - `docs/UI_DESIGN.md` §7 references `docs/METRICS.md` §6 for the Wilson heuristic; correct during UI documentation cleanup.
 - `README.md` is not yet present; leave for P0-D3-05.
 - `app/routes/__init__.py` is not specified; decide when implementing routes.

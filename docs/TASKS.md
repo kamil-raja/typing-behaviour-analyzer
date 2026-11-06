@@ -86,17 +86,17 @@
 - [x] **Commit (deferred):** `feat(validators): full schema and ASCII validation` — not performed; commits require explicit approval
 
 ### P0-D1-07: Text resolution
-- [ ] Create `app/data/passages.json` (~12 passages, original or public-domain, ASCII 32–126 only)
-- [ ] Create `app/data/words_en.json` (~200 common English words, lowercase ASCII)
-- [ ] Implement `app/texts.py`:
+- [x] Create `app/data/passages.json` (~12 passages, original or public-domain, ASCII 32–126 only)
+- [x] Create `app/data/words_en.json` (~200 common English words, lowercase ASCII)
+- [x] Implement `app/texts.py`:
   - Passage loader + getter
   - Deterministic word generator: `random.Random(seed).shuffle()` over fixed word list
   - Word count sizing: 15 s → 120 words, 30 s → 200 words, 60 s → 350 words
   - Startup ASCII assertion (fail loudly if any char outside 32–126)
-- [ ] Add startup assertion to `create_app()`
-- [ ] **Acceptance:** startup assertion fires; `texts.py` returns correct text for given `text_ref`; deterministic across calls with same seed
-- [ ] **Files touched:** `app/texts.py`, `app/data/passages.json`, `app/data/words_en.json`
-- [ ] **Commit:** `feat(texts): text resolution and startup ASCII assertion`
+- [x] Add startup assertion to `create_app()`
+- [x] **Acceptance:** startup assertion fires; `texts.py` returns correct text for given `text_ref`; deterministic across calls with same seed; **390 tests pass** in the full suite
+- [x] **Files touched:** `app/texts.py`, `app/data/passages.json`, `app/data/words_en.json`, `app/__init__.py`, `app/config.py`, `tests/test_texts.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- [x] **Commit (deferred):** `feat(texts): text resolution and startup ASCII assertion` — not performed; commits require explicit approval
 
 ### P0-D1-08: Frontend — themes and CSS tokens
 - [ ] Create `app/static/css/tokens.css` with all design tokens (light + dark) per `docs/UI_DESIGN.md` §3

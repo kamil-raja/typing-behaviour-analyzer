@@ -285,21 +285,38 @@ P0-D1-05 will map expected characters through `CHAR_TO_CODE` and merge the two m
 
 ---
 
+### ADR-027: Text content, frozen ordering and the deterministic generator
+**Date:** 2026-11-06
+**Status:** Approved
+**Context:** `AMB-001` and `AMB-002` required author-approved content, and `docs/EVENT_SCHEMA.md` §9 requires a reproducible word generator and a startup ASCII check. No text or word list existed in the repository. The author approved authoring original project content for this build (in-session, 2026-11-06) rather than supplying external text.
+**Decision:**
+- `app/data/passages.json` is a JSON array of `{"id", "text"}` objects, ordered `p_001` … `p_012`. All twelve texts are original prose written for this project, not copied from Monkeytype, Keybr or any public-domain source. Each is 150–400 characters, contains only ASCII 32–126, single spaces, and no newline or tab. Per `AMB-003`, the UI label is the first ~40 characters; no title field is added.
+- `app/data/words_en.json` is a JSON array of exactly 200 unique, lowercase `a-z` words in a frozen order. The order is frequency-inspired but is not a cited frequency list; its only contract is that it never changes without a new ADR.
+- Word generation is frozen as: `rng = random.Random(seed)`; repeatedly `rng.shuffle(words)` on a working copy of the source list and append the whole shuffled list until at least `count` words exist; return the first `count` joined by one space. For `count <= 200` this is one shuffle and a slice. The repeat-cycling rule exists because the documented `count` range is 10–400 while the source list has 200 words. It preserves the blueprint's `random.Random(seed).shuffle()` algorithm and source-list ordering.
+- Duration sizing lives in `app/config.py` as `WORDS_FOR_DURATION_MS = {15000: 120, 30000: 200, 60000: 350}` and is exposed through `texts.words_for_duration()`.
+- `texts.resolve_text(text_ref)` is the only entry point routes need. Unknown passage ids raise `TextNotFoundError` (`TEXT_NOT_FOUND`, 404); an unsupported ref type is a `ValueError` because schema validation already owns the enum.
+- `texts.validate_text_sources()` is called from `create_app()` and raises `TextSourceError` on unreadable/invalid JSON, malformed structure, duplicate ids, non-ASCII characters (including control characters), empty strings, or words that are not lowercase `a-z`.
+**Consequences:** Seed-to-text mappings are reproducible only while both files keep their exact ordering; any content change requires a new ADR and must not reorder existing entries. Sessions store a passage snapshot, so historical results remain interpretable, but future text for an existing seed will change if the word list changes. `AMB-001` and `AMB-002` are resolved by this decision; the authored texts remain subject to the author's editorial review before release.
+
+---
+
 ## Open Ambiguities
 
 ### AMB-001: Exact words in `words_en.json`
 **Date:** 2026-11-06
-**Status:** Open
+**Status:** Resolved by ADR-027 (2026-11-06)
 **Context:** The blueprint says "~200 common English words" but does not list them.
 **Decision needed:** Author must provide or approve the specific word list. The requirement is: lowercase, ASCII 32–126 only, ~200 words, common English.
 **Impact:** The word-generator determinism depends on the exact list and its ordering. Once set, the list must not be reordered (it would change seed → text mappings).
+**Resolution:** The author approved authoring original project content. `app/data/words_en.json` now holds 200 unique lowercase `a-z` words in a frozen order; see ADR-027.
 
 ### AMB-002: Exact passage texts
 **Date:** 2026-11-06
-**Status:** Open
+**Status:** Resolved by ADR-027 (2026-11-06)
 **Context:** The blueprint says "~12 original or public-domain ASCII passages" and notes the user will author them (§16, assumption 5).
 **Decision needed:** Author must provide the passage texts. Each must be: printable ASCII 32–126 only, original or verified public-domain, reasonable length for a typing test.
 **Impact:** These are needed before `texts.py` and the passage-mode UI can be fully tested.
+**Resolution:** Twelve original ASCII passages (`p_001`–`p_012`) were authored for this build with author approval; see ADR-027. Editorial review before release remains with the author.
 
 ### AMB-003: Passage selector UI — ordered or labelled?
 **Date:** 2026-11-06
