@@ -13,7 +13,7 @@
    - Tests run and their results
    - Exact next task (task ID from `docs/TASKS.md`)
    - Any mid-task stopping point details
-2. The outgoing agent commits all changes with an appropriate message.
+2. The outgoing agent commits all changes with an appropriate message once the user approves. If a commit is deferred, record that in Current State.
 3. The incoming agent reads: `AGENTS.md` → `docs/HANDOFF.md` → `docs/TASKS.md` → starts at the first unchecked task.
 
 ---
@@ -37,71 +37,86 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 | Field | Value |
 |---|---|
 | **Branch** | `feature/project-foundation` |
-| **Status** | Clean working tree (documentation + audit corrections committed) |
-| **Last commit** | Audit: documentation consistency corrections |
+| **Status** | Uncommitted changes: modified `.gitignore`, `docs/TASKS.md`, `docs/PROGRESS.md`; untracked `app/`, `requirements.txt`, `run.py` |
+| **Last commit** | `1bf73fa docs(audit): fix duplicate rule, SVG->button, add missing regression test coverage, clarify hygiene scope` |
 | **Tags** | None yet |
+| **Commit/push** | **None performed** — changes await explicit approval |
 
-### Files Changed This Session (Audit)
+`.venv/`, `__pycache__/`, and `instance/` are ignored and are not part of the working-tree changes.
 
-| File | Change |
+### Completed This Session — P0-D1-01 Scaffold
+
+| File | Purpose |
 |---|---|
-| `AGENTS.md` | Removed duplicate rule §3.6 (identical to §3.3); added §3.8 "No SQL in routes" |
-| `docs/ARCHITECTURE.md` | Fixed heatmap data-flow description: `<button>` keyboard, not SVG |
-| `docs/TASKS.md` | Added missing regression test coverage (client-supplied `ended_at_ms`/`end_reason` rejection; timer-boundary event tests) in P0-D1-06; clarified `git tag day2` as separate step |
-| `docs/DECISIONS.md` | Clarified ADR-005: hygiene test scans user-facing UI strings only; `METRICS.md` technical docs are exempt |
-| `docs/HANDOFF.md` | Updated to reflect audit session (this file) |
+| `run.py` | Development entry point: `app = create_app(); app.run(debug=True)` |
+| `requirements.txt` | Direct dependencies only: `Flask>=3.0`, `pytest>=8.0` |
+| `app/__init__.py` | `create_app()` factory; creates the Flask app and loads `app.config` via `from_object` |
+| `app/config.py` | All 15 named metric thresholds from `docs/METRICS.md` §14; no metric calculations |
+| `app/errors.py` | Nine documented API error codes plus `json_error()` in the documented response shape |
+| `.gitignore` | Added `instance/`; existing `.venv/`, `venv/`, `__pycache__/`, `*.py[cod]`, and `.pytest_cache/` rules preserved |
 
-### Tests Run
+### Environment
 
-No tests run — no application code exists yet. `pytest` cannot be run until P0-D1-01 (scaffold) is complete.
+| Field | Value |
+|---|---|
+| Python | 3.14.7 |
+| Virtual environment | `.venv` (Python 3.14.7) |
+| Direct dependencies | Flask 3.1.3, pytest 9.2.0 |
+| Transitive dependencies | blinker 1.9.0, click 8.5.0, colorama 0.4.6, iniconfig 2.3.1, itsdangerous 2.2.0, Jinja2 3.1.6, MarkupSafe 3.0.4, packaging 26.3, pluggy 1.7.0, Pygments 2.21.0, Werkzeug 3.1.9 |
+| `pip check` | No broken requirements |
+| Minimum Python | Unchanged at 3.10+ per blueprint |
 
-### Application Code Written
+### Verification
 
-**None.** This session was documentation-only as instructed.
+- Activating `.venv` resolves `python` to `.venv\Scripts\python.exe` (Python 3.14.7).
+- `import flask, pytest` succeeds.
+- `create_app()` returns a Flask application (`app.name == "app"`).
+- All 15 `METRICS.md` §14 constants load into `app.config`.
+- `python run.py` starts on `http://127.0.0.1:5000` with debug mode on.
+- `GET /` returns **404** — expected because no routes exist yet.
+- `json_error()` verified for `VALIDATION_ERROR` (422 with supplied details) and `INVALID_JSON` (400 with empty details).
+- `tests/` does not exist. **No automated tests exist**, pytest was not run as a pass criterion, and no placeholder tests were created. Test infrastructure belongs to P0-D1-02.
+- No compatibility issues with Python 3.14.7. Flask's deprecated `__version__` was used only in an ad-hoc check, not in project code.
 
 ---
 
 ## Exact Next Task
 
-**Task ID:** P0-D1-01
-**Title:** Repository and project scaffold
+**Task ID:** P0-D1-02
+**Title:** Tests infrastructure and conftest
 
-**What to do:**
-1. Create `run.py`:
-   ```python
-   from app import create_app
-   app = create_app()
-   if __name__ == "__main__":
-       app.run(debug=True)
-   ```
-2. Create `requirements.txt`:
-   ```
-   Flask>=3.0
-   pytest>=8.0
-   ```
-3. Create `app/__init__.py` with `create_app()` factory (empty Flask app, register blueprints).
-4. Create `app/config.py` with **all** named constants from `docs/METRICS.md` §14.
-5. Create `app/errors.py` with error code string constants and a `json_error(code, message, details=None, status=422)` helper function.
-6. Create a virtual environment (`python -m venv venv`) and install dependencies (`pip install -r requirements.txt`).
-7. Verify `python run.py` starts without error.
-8. Run `pytest tests/` — it should collect 0 tests and exit 0 (no test files yet).
+**Scope (from `docs/TASKS.md`):**
+1. Create `tests/conftest.py` with a Flask test-client fixture and an in-memory DB fixture.
+2. Create `tests/fixtures/`.
+3. Create golden fixture files for examples A–G from `docs/METRICS.md` §13.
+4. **Acceptance:** `pytest tests/` runs with 0 errors (no tests collected is acceptable at this stage).
 
-**Acceptance criteria:**
-- `python run.py` starts Flask (even with no routes returning anything useful).
-- `pytest tests/` exits 0.
-- No other files modified.
+**Before starting, resolve:**
+- The in-memory DB fixture is requested here, but the DB schema/connection task is P0-D2-01. Decide whether to stub/defer the DB fixture or bring forward only the minimum connection setup, and record the decision in `docs/DECISIONS.md`.
+- Golden fixture G is underspecified (no `duration_limit_ms`, expected `end_reason`, or `T`). Pin these values before writing replay tests in P0-D1-03.
 
-**After completing P0-D1-01:**
-Proceed immediately to **P0-D1-02** (tests infrastructure and conftest).
+---
+
+## Outstanding Issues for the Next Agent
+
+1. **Golden fixture G** lacks `duration_limit_ms` and expected `end_reason`/`T`; resolve before replay tests (P0-D1-03).
+2. **Word list and passage texts** are missing (`AMB-001`, `AMB-002`); handle in P0-D1-07.
+3. **Timer-boundary tests** are listed under P0-D1-06, but timing behaviour belongs to the replay engine; resolve before validators.
+4. **`ended_at_ms`/`end_reason` handling** ("reject" vs "ignore") is ambiguous; decide and document before validator implementation.
+5. **Non-metric application limits** (request size, event counts, allowed durations, word counts) are not formally enumerated; add only when the relevant validation/API tasks specify them.
+6. **`docs/UI_DESIGN.md` §7** references `docs/METRICS.md` §6 for the Wilson heuristic; it should be §12. Correct during UI documentation cleanup.
+7. **`README.md`** is absent; leave for P0-D3-05.
+8. **`app/routes/__init__.py`** is not specified; decide when implementing routes.
+9. **P0-D1-01 changes are uncommitted.** The commit is recorded as deferred in `docs/TASKS.md`; HEAD remains `1bf73fa`. Do not commit or push without approval.
 
 ---
 
 ## Important Reminders for the Next Agent
 
-1. Read `AGENTS.md` **in full** before writing any code.
-2. Run `pytest` before every commit. Do not commit a failing suite.
-3. The engine (`app/engine/`) must have **zero** HTTP calls and **zero** DB calls.
-4. Do **not** install any package not in `requirements.txt` (Flask, pytest only to start).
-5. Do **not** create any file not listed in `docs/ARCHITECTURE.md` §8 without logging the decision in `docs/DECISIONS.md`.
-6. The word list and passage texts are listed as open ambiguities (AMB-001, AMB-002). Use placeholder content if needed, clearly marked as placeholder. The agent should flag this to the user before the Day 1 final commit.
-7. The golden fixtures (A–G) in `docs/METRICS.md` §13 must be implemented and all must pass before moving past P0-D1-04.
+1. Read `AGENTS.md` in full before writing code.
+2. Do not commit or push unless the user approves.
+3. Run `pytest` before any approved commit; do not commit a failing suite.
+4. The engine (`app/engine/`) must have zero HTTP calls and zero DB calls.
+5. Do not install packages not listed in `requirements.txt`.
+6. Do not create files outside the approved structure in `docs/ARCHITECTURE.md` §8 without logging the decision in `docs/DECISIONS.md`.
+7. Golden fixtures A–G in `docs/METRICS.md` §13 must pass before moving past P0-D1-04; fixture G must be pinned first (see outstanding issues).

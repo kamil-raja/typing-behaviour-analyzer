@@ -11,16 +11,17 @@
 ## Day 1 — Engine and Core Loop
 
 ### P0-D1-01: Repository and project scaffold
-- [ ] Create `run.py` (entry point: `app = create_app(); app.run(debug=True)`)
-- [ ] Create `requirements.txt` with `Flask` and `pytest`
-- [ ] Create `app/__init__.py` with `create_app()` factory (empty Flask app for now)
-- [ ] Create `app/config.py` with all named constants (thresholds from `docs/METRICS.md` §14)
-- [ ] Create `app/errors.py` with error code constants and JSON error response helper
-- [ ] Create virtual environment; install dependencies
-- [ ] Verify `python run.py` starts Flask without error
-- [ ] **Acceptance:** `python run.py` runs; `GET /` returns 404 or placeholder (no crash)
-- [ ] **Files touched:** `run.py`, `requirements.txt`, `app/__init__.py`, `app/config.py`, `app/errors.py`
-- [ ] **Commit:** `chore(scaffold): initial project structure`
+- [x] Create `run.py` (entry point: `app = create_app(); app.run(debug=True)`)
+- [x] Create `requirements.txt` with `Flask` and `pytest`
+- [x] Create `app/__init__.py` with `create_app()` factory (empty Flask app for now)
+- [x] Create `app/config.py` with all named constants (thresholds from `docs/METRICS.md` §14)
+- [x] Create `app/errors.py` with error code constants and JSON error response helper
+- [x] Create virtual environment (`.venv`); install dependencies from `requirements.txt`
+- [x] Verify Flask imports and `create_app()` returns a Flask application
+- [x] Verify `python run.py` starts the development server on `http://127.0.0.1:5000` without error
+- [x] **Acceptance:** dependencies install successfully; Flask imports; `create_app()` succeeds; `python run.py` starts the local development server. Automated test infrastructure and tests belong to P0-D1-02; this task does not require `pytest tests/` to pass.
+- [x] **Files touched:** `run.py`, `requirements.txt`, `app/__init__.py`, `app/config.py`, `app/errors.py`, `.gitignore`
+- **Commit (deferred):** `chore(scaffold): initial project structure` — not performed; commits require explicit approval.
 
 ### P0-D1-02: Tests infrastructure and conftest
 - [ ] Create `tests/conftest.py` with Flask test client fixture and in-memory DB fixture
