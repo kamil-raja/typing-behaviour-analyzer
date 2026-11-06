@@ -7,9 +7,9 @@
 
 ## Current Status
 
-**Phase: Implementation in progress — P0-D1-01 through P0-D1-04 complete.**
+**Phase: Implementation in progress — P0-D1-01 through P0-D1-05 complete.**
 
-Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, and the metric layer now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Per-key `CHAR_TO_CODE` mapping and heatmap classification are the next task (P0-D1-05).
+Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map and the Wilson heatmap heuristic now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. Validators are the next task (P0-D1-06).
 
 ---
 
@@ -67,8 +67,19 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 - [x] Resolved the fixture-A IKI conflict in favour of the §8.5 sample-size rule (ADR-023)
 - [x] `pytest tests/ -v`: **91 passed**
 
+### Key statistics and heatmap classification (2026-11-06)
+- [x] P0-D1-05: Created `app/engine/keys.py`
+- [x] Added `CHAR_TO_CODE` for all 95 printable ASCII characters (32–126) with US-QWERTY `event.code` values; capitals share letter keys and shifted symbols share their base keys
+- [x] Implemented `wilson_ci()` exactly per `docs/METRICS.md` §12.2, including the reference Wilson(3, 20) ≈ [0.052, 0.360]
+- [x] Implemented `classify_key()`, `classify_observation()`, `classify_key_stat()` and `pooled_baseline_error_rate()` with the `HEATMAP_MIN_N = 20` grey gate, all three weak-key conditions, the 1 % baseline floor and the strong/average fallbacks
+- [x] Merged expected-character observations/IKI with physical-code dwell into `SessionKeyStat` rows matching the `session_key_stats` columns; `Backspace` appears as a dwell-only row and unmapped characters raise
+- [x] Added `session_key_stats` to `SessionAnalysis` while retaining the raw `key_stats` intermediate
+- [x] Created `tests/test_keys.py`: full ASCII coverage, shifted-key sharing, Wilson values and boundaries, n = 19 / n = 20, each weak condition, strong/average, dwell invariance, merge unions and ASCII failure
+- [x] Recorded ADR-024 for the merge shape, classification gate and floating-point margin tolerance
+- [x] `pytest tests/ -v`: **124 passed** (91 previous + 33 key tests)
+
 ### Application code
-- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, and P0-D1-04 metrics; no keys/heatmap, validators, routes, database, or frontend yet
+- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, and P0-D1-05 key statistics; no validators, routes, database, or frontend yet
 
 ---
 
@@ -80,7 +91,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 | P0-D1-02: Tests infrastructure | ✅ Complete (2026-11-06) |
 | P0-D1-03: Engine — replay | ✅ Complete (2026-11-06) |
 | P0-D1-04: Engine — metrics | ✅ Complete (2026-11-06) |
-| P0-D1-05: Engine — key stats / heatmap | ⬜ Not started |
+| P0-D1-05: Engine — key stats / heatmap | ✅ Complete (2026-11-06) |
 | P0-D1-06: Validators | ⬜ Not started |
 | P0-D1-07: Text resolution | ⬜ Not started |
 | P0-D1-08: Frontend — themes / CSS | ⬜ Not started |
@@ -105,7 +116,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 
 **Day 1 vertical slice:** by end of Day 1, a user should be able to type, submit, and see metrics — even without DB persistence. The engine must pass all golden fixtures (A–G).
 
-Exact next task: **P0-D1-05** — engine key stats and heatmap classification (`app/engine/keys.py`, `tests/test_keys.py`).
+Exact next task: **P0-D1-06** — validators (`app/validators.py`, `tests/test_validators.py`).
 
 ---
 
@@ -118,7 +129,7 @@ See `docs/DECISIONS.md` for open ambiguities:
 - **AMB-004:** Moving average window behaviour at < 5 sessions (assumed trailing window with expanding for early sessions)
 
 ### Known issues carried forward
-- Per-key attribution: `metrics.py` returns observations/IKI keyed by expected character and dwell keyed by physical code. The `CHAR_TO_CODE` merge into `session_key_stats` is P0-D1-05 (ADR-022).
+- Per-key attribution is resolved: `metrics.py` still returns the two raw maps (ADR-022), and `keys.merge_session_key_stats()` now produces the `key_code`-keyed rows (ADR-024). `SessionAnalysis` exposes both forms.
 - The fixture-A IKI contradiction is closed under ADR-023; `golden_a.json` now expects null IKI statistics because `|V| = 3 < 5`.
 - Word list and passage texts are missing; handle in P0-D1-07.
 - Timer-boundary behaviour is now covered by replay tests; P0-D1-06 still lists a boundary test, so keep validator coverage focused on schema and sequence checks.

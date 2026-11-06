@@ -246,6 +246,19 @@ P0-D1-05 will map expected characters through `CHAR_TO_CODE` and merge the two m
 **Decision:** The author ruled that §8.5 takes precedence. `tests/fixtures/golden_a.json` now expects `avg_iki_ms: null` and `iki_sd_ms: null`; the three valid intervals remain listed as `valid_intervals_ms`. The fixture's gross, net, accuracy, interval and pause values are unchanged.
 **Consequences:** The fixture no longer asserts an unreachable mean/SD for three intervals. A synthetic test with five valid intervals verifies that mean, median, sample SD and CV are computed when the minimum is met.
 
+### ADR-024: Key statistics merge shape and classification gate
+**Date:** 2026-11-06
+**Status:** Approved
+**Context:** P0-D1-05 must merge the two attribution maps produced by `metrics.compute_key_stats()` (ADR-022) into the `session_key_stats` columns from blueprint §9. The documented `classify_key(e, b, lo, hi, x)` signature has no sample-size argument, yet the heatmap has an `n < HEATMAP_MIN_N` "insufficient" state. The stored row shape and the merge return type are also not named in the task.
+**Decision:**
+- `app/engine/keys.py` defines `SessionKeyStat`, a frozen dataclass whose fields are exactly the additive `session_key_stats` columns: `key_code`, `attempts`, `errors`, `dwell_count`, `dwell_sum_ms`, `iki_count`, `iki_sum_ms`.
+- `merge_session_key_stats(key_stats)` returns a `key_code`-keyed dict sorted by key code. The keys are the union of the codes reached through `CHAR_TO_CODE` from expected characters and the physically pressed dwell codes (including `Backspace`); rows with no data for one source keep zeros for that source. An expected character outside the static table raises `ValueError` rather than being silently dropped.
+- `classify_key(e, b, lo, hi, x)` keeps the documented five-argument signature. `lo` and `hi` may be `None`, which represents the `n < HEATMAP_MIN_N` grey state and returns `"insufficient"`. `classify_observation(attempts, errors, baseline)` applies the `n >= HEATMAP_MIN_N` gate, computes `e`, calls `wilson_ci`, and then calls `classify_key`; `classify_key_stat` is the same operation for a stored row.
+- `pooled_baseline_error_rate(total_errors, total_attempts)` returns `None` when there are no observations (nothing to pool) and otherwise applies the documented 1 % floor.
+- The `e - b >= 0.02` margin comparison allows a `1e-12` floating-point tolerance so an exact decimal boundary is not lost to binary representation. No threshold value changes.
+- `SessionAnalysis` gains `session_key_stats` (the merged rows). The existing `key_stats` field remains the raw two-map intermediate for auditability.
+**Consequences:** The repository can insert one row per `session_key_stats` item. Classification can be reused unchanged by the P0-D3-01 aggregation endpoint. The raw attribution maps remain available, so no information is lost in the merge.
+
 ---
 
 ## Open Ambiguities

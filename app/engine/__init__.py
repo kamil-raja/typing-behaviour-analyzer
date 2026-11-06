@@ -11,6 +11,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from app.engine.keys import SessionKeyStat, merge_session_key_stats
 from app.engine.metrics import (
     KeyStats,
     SessionMetrics,
@@ -25,14 +26,16 @@ class SessionAnalysis:
     """The full engine result for one validated session.
 
     ``replay`` retains the derived buffers and event-level detail; ``metrics``
-    holds the stored session-level figures; ``key_stats`` holds the additive
-    per-key sums. Outcome checks such as ``INCOMPLETE_SESSION`` remain with the
-    caller (ADR-020).
+    holds the stored session-level figures; ``key_stats`` holds the raw additive
+    maps (expected character plus physical dwell code); ``session_key_stats``
+    holds the merged, ``key_code``-keyed rows ready for persistence. Outcome
+    checks such as ``INCOMPLETE_SESSION`` remain with the caller (ADR-020).
     """
 
     replay: ReplayResult
     metrics: SessionMetrics
     key_stats: KeyStats
+    session_key_stats: dict[str, SessionKeyStat]
 
 
 def analyze_session(
@@ -48,8 +51,10 @@ def analyze_session(
         duration_limit_ms=duration_limit_ms,
         events=events,
     )
+    key_stats = compute_key_stats(replay)
     return SessionAnalysis(
         replay=replay,
         metrics=compute_metrics(replay),
-        key_stats=compute_key_stats(replay),
+        key_stats=key_stats,
+        session_key_stats=merge_session_key_stats(key_stats),
     )

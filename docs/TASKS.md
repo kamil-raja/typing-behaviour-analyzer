@@ -53,20 +53,22 @@
 - **Commit (deferred):** `feat(engine): metrics — green on all fixtures` — not performed; commits require explicit approval.
 
 ### P0-D1-05: Engine — key stats and heatmap classification
-- [ ] Implement `app/engine/keys.py`:
+- [x] Implement `app/engine/keys.py`:
   - `CHAR_TO_CODE` table: all ASCII 32–126 mapped to US-QWERTY key codes
   - `wilson_ci(x, n, z=1.96)` function
   - `classify_key(e, b, lo, hi, x)` → `"weak"` / `"average"` / `"strong"` / `"insufficient"`
-- [ ] Write `tests/test_keys.py`:
+- [x] Write `tests/test_keys.py`:
   - Wilson(3, 20) ≈ [0.052, 0.360]
   - `n < 20` → grey/insufficient
   - `n = 20` → classified
   - Weak requires `lo > b` AND `e - b ≥ 0.02` AND `x ≥ 3`
   - Long dwell never changes classification
   - `CHAR_TO_CODE` covers all 95 printable ASCII characters
-- [ ] **Acceptance:** all key tests pass
-- [ ] **Files touched:** `app/engine/keys.py`, `tests/test_keys.py`
-- [ ] **Commit:** `feat(engine): keys — CHAR_TO_CODE and Wilson heuristic`
+- [x] Merge character-keyed observations/IKI with code-keyed dwell into `key_code`-keyed `SessionKeyStat` rows and expose them as `SessionAnalysis.session_key_stats`
+- [x] Add `pooled_baseline_error_rate()`, `classify_observation()` and `classify_key_stat()` helpers for the P0-D3-01 aggregation endpoint
+- [x] **Acceptance:** all key tests pass; **124 tests pass** in the full suite
+- [x] **Files touched:** `app/engine/keys.py`, `app/engine/__init__.py`, `tests/test_keys.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- **Commit (deferred):** `feat(engine): keys — CHAR_TO_CODE and Wilson heuristic` — not performed; commits require explicit approval (ADR-024 explains the merge/classification shape).
 
 ### P0-D1-06: Validators
 - [ ] Implement `app/validators.py`: full payload schema validation per `docs/EVENT_SCHEMA.md` §6–§7
