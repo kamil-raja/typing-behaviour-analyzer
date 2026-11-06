@@ -29,19 +29,19 @@
 - [x] Create golden fixture files for examples A–G (from `docs/METRICS.md` §13)
 - [x] Add fixture-integrity checks in `tests/test_fixtures.py` (structure only; no replay or metric logic)
 - [x] Add conftest fixture checks in `tests/test_infrastructure.py`
-- [x] **Acceptance:** `pytest tests/` runs with 0 errors; **10 tests pass** (7 fixture-structure checks, 1 fixture-G unresolved check, 2 conftest fixture checks).
+- [x] **Acceptance:** `pytest tests/` runs with 0 errors; **10 tests pass** (7 fixture-structure checks, 1 fixture-G check, 2 conftest fixture checks).
 - [x] **Files touched:** `tests/conftest.py`, `tests/test_fixtures.py`, `tests/test_infrastructure.py`, `tests/fixtures/golden_a.json` … `golden_g.json`, `docs/DECISIONS.md`
-- **Commit (deferred):** `test(infra): add pytest fixtures and golden examples A–G` — not performed; commits require explicit approval.
+- **Commit:** `147ec1e test: add test infrastructure and golden fixtures` — committed externally; no commit was made by this agent.
 
 ### P0-D1-03: Engine — replay
-- [ ] Implement `app/engine/replay.py`: buffer state machine, `pending` map, all event-handling rules per `docs/EVENT_SCHEMA.md` §4
-- [ ] Handle: accepted printable, repeat printable (discard), Backspace (non-repeat, repeat), `up` pairing, orphan up, missing up, full-buffer rule, timer boundary rule, dropped-after-end
-- [ ] Implement `app/engine/__init__.py` with `analyze_session()` stub
-- [ ] Write `tests/test_replay.py`: golden fixtures A–G against expected K, C, E, N, U, Ec, Eu, deletions, presses, dropped_after_end, end_reason, T
-- [ ] Assert invariants on every fixture: `E = U + Ec + Eu`, `K = C + E`, `N ≤ K`
-- [ ] **Acceptance:** all fixture tests pass
-- [ ] **Files touched:** `app/engine/__init__.py`, `app/engine/replay.py`, `tests/test_replay.py`, `tests/fixtures/`
-- [ ] **Commit:** `feat(engine): replay — green on fixtures A–G`
+- [x] Implement `app/engine/replay.py`: buffer state machine, `pending` map, all event-handling rules per `docs/EVENT_SCHEMA.md` §4
+- [x] Handle: accepted printable, repeat printable (discard), Backspace (non-repeat, repeat), `up` pairing, orphan up, missing up, full-buffer rule, timer boundary rule, dropped-after-end
+- [x] Implement `app/engine/__init__.py` with `analyze_session()` stub
+- [x] Write `tests/test_replay.py`: golden fixtures A–G against expected K, C, E, N, U, Ec, Eu, deletions, presses, dropped_after_end, end_reason, T
+- [x] Assert invariants on every fixture: `E = U + Ec + Eu`, `K = C + E`, `N ≤ K`
+- [x] **Acceptance:** all fixture tests pass; **34 tests pass** in the full suite.
+- [x] **Files touched:** `app/engine/__init__.py`, `app/engine/replay.py`, `tests/test_replay.py`, `tests/test_fixtures.py`, `tests/fixtures/golden_f.json`, `tests/fixtures/golden_g.json`
+- **Commit (deferred):** `feat(engine): replay — green on fixtures A–G` — not performed; commits require explicit approval.
 
 ### P0-D1-04: Engine — metrics
 - [ ] Implement `app/engine/metrics.py`: all formulas from `docs/METRICS.md` (gross WPM, net WPM, accuracy, final-text accuracy, dwell, IKI stats, consistency, pause stats, per-key IKI, error accounting)

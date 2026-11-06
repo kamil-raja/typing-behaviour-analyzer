@@ -7,9 +7,9 @@
 
 ## Current Status
 
-**Phase: Implementation in progress — P0-D1-01 and P0-D1-02 complete.**
+**Phase: Implementation in progress — P0-D1-01, P0-D1-02 and P0-D1-03 complete.**
 
-Documentation, the minimum Flask application foundation, and the pytest infrastructure now exist. The seven golden examples are present as JSON fixtures, and fixture-integrity tests pass. Engine replay is the next task (P0-D1-03).
+Documentation, the minimum Flask application foundation, the pytest infrastructure, and the replay engine now exist. All seven golden examples pass through replay, including fixture G's approved AMB-005 values. Metric computation is the next task (P0-D1-04).
 
 ---
 
@@ -44,11 +44,20 @@ Documentation, the minimum Flask application foundation, and the pytest infrastr
 - [x] Created golden fixtures `tests/fixtures/golden_a.json` through `golden_g.json`
 - [x] Added `tests/test_fixtures.py` for structural integrity only; no replay or metric logic
 - [x] Added `tests/test_infrastructure.py` to verify the `app`, `client`, and `db_conn` fixtures
-- [x] Fixture G records `text`, `duration_limit_ms`, `end_reason`, and `active_duration_ms` as unresolved (AMB-005); no values were invented
-- [x] `pytest tests/ -v`: **10 passed**
+- [x] Committed externally as `147ec1e test: add test infrastructure and golden fixtures`
+- [x] `pytest tests/ -v`: **10 passed** at P0-D1-02 completion
+
+### Replay engine (2026-11-06)
+- [x] P0-D1-03: Created `app/engine/replay.py` with the buffer state machine and pending-key map
+- [x] Implemented printable, repeat-printable discard, non-repeat/repeat Backspace, keyup pairing, orphan up, missing up, full-buffer rejection, timer boundary, and dropped-after-end
+- [x] Created `app/engine/__init__.py` with the `analyze_session()` replay-stage entry point
+- [x] Created `tests/test_replay.py`: golden fixtures A–G plus focused pending-key and boundary tests
+- [x] Asserted `E = U + Ec + Eu`, `K = C + E`, and `N ≤ K` on every fixture
+- [x] Resolved AMB-005 with the approved fixture G text, 2000 ms limit, `timer_expiry` fixture label, and `T = 2000` (ADR-019)
+- [x] `pytest tests/ -v`: **34 passed**
 
 ### Application code
-- [x] P0-D1-01 scaffold only; no engine, validators, routes, database, or frontend yet
+- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, and P0-D1-03 replay; no metrics, validators, routes, database, or frontend yet
 
 ---
 
@@ -58,7 +67,7 @@ Documentation, the minimum Flask application foundation, and the pytest infrastr
 |---|---|
 | P0-D1-01: Repository scaffold | ✅ Complete (2026-11-06) |
 | P0-D1-02: Tests infrastructure | ✅ Complete (2026-11-06) |
-| P0-D1-03: Engine — replay | ⬜ Not started |
+| P0-D1-03: Engine — replay | ✅ Complete (2026-11-06) |
 | P0-D1-04: Engine — metrics | ⬜ Not started |
 | P0-D1-05: Engine — key stats / heatmap | ⬜ Not started |
 | P0-D1-06: Validators | ⬜ Not started |
@@ -85,7 +94,7 @@ Documentation, the minimum Flask application foundation, and the pytest infrastr
 
 **Day 1 vertical slice:** by end of Day 1, a user should be able to type, submit, and see metrics — even without DB persistence. The engine must pass all golden fixtures (A–G).
 
-Exact next task: **P0-D1-03** — engine replay (`app/engine/replay.py`) and `tests/test_replay.py`.
+Exact next task: **P0-D1-04** — engine metrics (`app/engine/metrics.py`) and `tests/test_metrics.py`.
 
 ---
 
@@ -96,12 +105,10 @@ See `docs/DECISIONS.md` for open ambiguities:
 - **AMB-002:** Passage texts not yet provided (needs author to write/approve them)
 - **AMB-003:** Passage selector label format (minor, can be decided during implementation)
 - **AMB-004:** Moving average window behaviour at < 5 sessions (assumed trailing window with expanding for early sessions)
-- **AMB-005:** Golden fixture G's exact text, duration limit, end reason, and active duration are not specified (see `docs/DECISIONS.md`)
 
 ### Known issues carried forward
-- Golden fixture G lacks `duration_limit_ms`, exact text, expected `end_reason`, and `T`; resolve before replay tests (P0-D1-03, AMB-005).
 - Word list and passage texts are missing; handle in P0-D1-07.
-- Timer-boundary tests are listed under P0-D1-06 but timing belongs to the replay engine; resolve before validators.
+- Timer-boundary behaviour is now covered by replay tests; P0-D1-06 still lists a boundary test, so keep validator coverage focused on schema and sequence checks.
 - Client-supplied `ended_at_ms`/`end_reason` handling ("reject" vs "ignore") remains ambiguous; decide before validator implementation.
 - Application limits outside `docs/METRICS.md` §14 (request size, event counts, allowed durations, word counts) are not formally enumerated; add when the relevant validation/API tasks specify them.
 - `docs/UI_DESIGN.md` §7 references `docs/METRICS.md` §6 for the Wilson heuristic; correct during UI documentation cleanup.

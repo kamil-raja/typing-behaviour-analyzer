@@ -189,6 +189,30 @@ The following decisions are pre-approved and locked in `TBA_BLUEPRINT_v3_FINAL.m
 
 ---
 
+### ADR-019: Golden fixture G values (AMB-005 resolved)
+**Date:** 2026-11-06
+**Status:** Approved
+**Context:** Blueprint §14.1 leaves fixture G's exact text, duration limit, end reason, and active duration unspecified.
+**Decision:** The author approved these values:
+- text: `the quick brown fox jumps over the lazy dog while another quiet fox watches from the green hill`
+- `duration_limit_ms`: `2000`
+- fixture-level `end_reason` label: `timer_expiry`
+- `active_duration_ms`: `2000`
+
+The fixture-level label `timer_expiry` describes timer expiry. The engine and stored schema use the canonical blueprint value `time_up` (blueprint §4.3 and §9). `tests/test_replay.py` maps the fixture label to `time_up`.
+**Consequences:** Fixture G now asserts the full end state, error accounting (`K=3 C=0 E=3 N=0 U=0 Ec=0 Eu=3`), Backspace deletion/dwell behaviour, and interval list. AMB-005 is closed.
+
+---
+
+### ADR-020: Replay returns a structured result; outcome checks stay with the caller
+**Date:** 2026-11-06
+**Status:** Approved
+**Context:** Replay derives completion or timer expiry, but the documented server processing order applies `INCOMPLETE_SESSION` as an outcome check after replay.
+**Decision:** `app.engine.replay.replay_events()` returns a `ReplayResult` containing the buffer, accepted keystrokes, timed actions, dwell samples, end reason, active duration, and data-quality counters. A passage run that never completes returns `end_reason=None`; the caller raises `INCOMPLETE_SESSION`. Timer expiry uses the canonical `time_up` value. `INVALID_EVENT_SEQUENCE` violations raise `InvalidEventSequence`.
+**Consequences:** The replay layer stays pure and testable. Route/outcome handling and metric computation can consume the same structured result without re-parsing events.
+
+---
+
 ## Open Ambiguities
 
 ### AMB-001: Exact words in `words_en.json`
@@ -216,10 +240,3 @@ The following decisions are pre-approved and locked in `TBA_BLUEPRINT_v3_FINAL.m
 **Status:** Open
 **Context:** The blueprint says "5-session moving average" but does not specify whether this is a trailing window average or an expanding average for early sessions (fewer than 5).
 **Decision:** Use a **trailing window** of 5 sessions. For the first 1–4 sessions, use all available sessions (expanding window). This is the conventional interpretation. Log here if changed.
-
-### AMB-005: Golden fixture G unspecified values
-**Date:** 2026-11-06
-**Status:** Open
-**Context:** Blueprint §14.1 gives fixture G as "time, long text" and specifies typed text, deletions, presses, dwell, timed actions, and intervals, but not the exact text, duration limit, end reason, or active duration.
-**Decision needed:** The author must supply or approve the text and duration limit; the derived end reason and `T` then follow from §4.2.
-**Impact:** P0-D1-03 can test the Backspace/deletion behaviour now, but cannot assert G's end state until these values are pinned. `tests/fixtures/golden_g.json` records them under `unresolved` and intentionally omits them.

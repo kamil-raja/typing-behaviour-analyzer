@@ -16,6 +16,12 @@
     "active_duration_ms": 1600,
     "dropped_after_end": 1,
     "K": 3,
+    "C": 3,
+    "E": 0,
+    "N": 3,
+    "U": 0,
+    "corrected_errors": 0,
+    "erased_unresolved_errors": 0,
     "gross_wpm": 22.5,
     "net_wpm": 22.5
   }

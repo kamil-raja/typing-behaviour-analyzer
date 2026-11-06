@@ -1,9 +1,8 @@
 """Structural checks for the golden example fixture files.
 
-These tests do not replay events or calculate metrics; that begins in
-P0-D1-03. They only ensure the JSON fixtures are well-formed and that
-fixture G does not contain invented values for fields the blueprint leaves
-unspecified.
+These tests do not replay events or calculate metrics; replay tests live in
+``test_replay.py``. They only ensure the JSON fixtures are well-formed and
+that fixture G carries the values approved for AMB-005.
 """
 
 import json
@@ -30,8 +29,11 @@ def test_golden_fixture_is_well_formed(fixture_id: str) -> None:
     assert fixture["mode"] in {"time", "passage"}
 
     if fixture_id == "G":
-        assert fixture["text"] is None
-        assert "duration_limit_ms" not in fixture
+        assert fixture["text"] == (
+            "the quick brown fox jumps over the lazy dog "
+            "while another quiet fox watches from the green hill"
+        )
+        assert fixture["duration_limit_ms"] == 2000
     else:
         assert fixture["text"] == "cat"
         if fixture["mode"] == "passage":
@@ -60,16 +62,20 @@ def test_golden_fixture_is_well_formed(fixture_id: str) -> None:
     assert "expected" in fixture or "expected_error" in fixture
 
 
-def test_fixture_g_keeps_unspecified_values_unresolved() -> None:
-    """Fixture G must not guess its text, duration limit, or derived end."""
+def test_fixture_g_uses_approved_amb_005_values() -> None:
+    """Fixture G carries the approved text, limit, end state and Backspace case."""
     fixture = load_fixture("G")
     expected = fixture["expected"]
-    unresolved = set(fixture["unresolved"])
 
-    assert {"text", "duration_limit_ms", "end_reason", "active_duration_ms"} <= unresolved
-    assert fixture["text"] is None
-    assert "duration_limit_ms" not in fixture
-    assert "end_reason" not in expected
-    assert "active_duration_ms" not in expected
+    assert fixture["duration_limit_ms"] == 2000
+    assert expected["end_reason"] == "timer_expiry"
+    assert expected["active_duration_ms"] == 2000
+    assert expected["typed_text"] == ""
+    assert expected["backspace_deletions"] == 3
+    assert expected["backspace_presses"] == 1
+    assert expected["backspace_dwell_ms"] == 600.0
+    assert expected["timed_actions"] == ["c", "a", "t", "Backspace"]
+    assert expected["intervals_ms"] == [100, 100, 800]
     assert sum(1 for event in fixture["events"] if event["type"] == "up") == 1
     assert sum(1 for event in fixture["events"] if event["repeat"]) == 2
+    assert "unresolved" not in fixture
