@@ -99,14 +99,15 @@
 - [x] **Commit (deferred):** `feat(texts): text resolution and startup ASCII assertion` — not performed; commits require explicit approval
 
 ### P0-D1-08: Frontend — themes and CSS tokens
-- [ ] Create `app/static/css/tokens.css` with all design tokens (light + dark) per `docs/UI_DESIGN.md` §3
-- [ ] Create `app/static/css/base.css` (reset, body, nav, typography)
-- [ ] Create inline blocking theme script (read `docs/UI_DESIGN.md` §9)
-- [ ] Create `app/templates/base.html` with nav, theme toggle, font links, CSS imports
-- [ ] Download/vendor Lexend and JetBrains Mono fonts to `app/static/fonts/`
-- [ ] Download Chart.js UMD build to `app/static/vendor/chart.umd.min.js`
-- [ ] **Acceptance:** no FOUC; theme persists across reload; both light and dark render correctly
-- [ ] **Files touched:** `app/static/css/tokens.css`, `app/static/css/base.css`, `app/templates/base.html`, fonts, vendor
+- [x] Create `app/static/css/tokens.css` with all design tokens (light + dark) per `docs/UI_DESIGN.md` §3
+- [x] Create `app/static/css/base.css` (reset, body, nav, typography)
+- [x] Create inline blocking theme script (read `docs/UI_DESIGN.md` §9)
+- [x] Create `app/templates/base.html` with nav, theme toggle, font links, CSS imports
+- [x] Download/vendor Lexend and JetBrains Mono fonts to `app/static/fonts/`
+- [x] Download Chart.js UMD build to `app/static/vendor/chart.umd.min.js`
+- [x] Add `app/static/js/theme.js` for toggle persistence and `tba:themechange` dispatch
+- [x] **Acceptance:** no FOUC; theme persists across reload; both light and dark render correctly; **392 tests pass** in the full suite
+- [x] **Files touched:** `app/static/css/tokens.css`, `app/static/css/base.css`, `app/static/js/theme.js`, `app/templates/base.html`, `app/static/fonts/` (two WOFF2 files + two OFL licences), `app/static/vendor/chart.umd.min.js` + licence, `tests/test_infrastructure.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
 
 ### P0-D1-09: Frontend — capture and typing engine
 - [ ] Implement `app/static/js/capture.js` per `docs/EVENT_SCHEMA.md`:

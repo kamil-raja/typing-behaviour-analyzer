@@ -1,0 +1,86 @@
+{# base.html — shared application shell.
+   All page templates extend this file and fill the content and scripts blocks.
+   Theme initialisation is inline and blocking so the correct palette is
+   applied before the stylesheets are parsed (docs/UI_DESIGN.md §9). #}
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Typing Behaviour Analyzer{% endblock %}</title>
+  <meta name="description" content="{% block description %}Analyse your typing speed, accuracy and key-level behaviour.{% endblock %}">
+
+  <script>
+    (() => {
+      const root = document.documentElement;
+      root.classList.add("no-transition");
+
+      let stored = null;
+      try {
+        stored = window.localStorage.getItem("tba-theme");
+      } catch (error) {
+        stored = null;
+      }
+
+      let prefersDark = false;
+      try {
+        prefersDark = typeof window.matchMedia === "function"
+          && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      } catch (error) {
+        prefersDark = false;
+      }
+
+      const theme = stored === "light" || stored === "dark"
+        ? stored
+        : (prefersDark ? "dark" : "light");
+
+      root.setAttribute("data-theme", theme);
+      window.addEventListener("load", () => {
+        root.classList.remove("no-transition");
+      }, { once: true });
+    })();
+  </script>
+
+  <link rel="preload" href="{{ url_for('static', filename='fonts/lexend-latin-variable.woff2') }}" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="{{ url_for('static', filename='fonts/jetbrains-mono-latin-variable.woff2') }}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/tokens.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="site-header">
+    <nav class="site-nav container" aria-label="Primary">
+      {% set nav_items = [
+        {"label": "test", "href": "/"},
+        {"label": "analytics", "href": "/analytics"},
+        {"label": "keyboard", "href": "/keyboard"},
+        {"label": "history", "href": "/history"}
+      ] %}
+      <ul class="site-nav__links">
+        {% for item in nav_items %}
+        <li>
+          <a class="site-nav__link" href="{{ item.href }}"{% if request.path == item.href %} aria-current="page"{% endif %}>{{ item.label }}</a>
+        </li>
+        {% endfor %}
+      </ul>
+      <button class="theme-toggle" type="button" data-theme-toggle>
+        <span class="theme-toggle__label" data-theme-label="light">Dark</span>
+        <span class="theme-toggle__label" data-theme-label="dark">Light</span>
+      </button>
+    </nav>
+  </header>
+
+  <main id="main" class="site-main" tabindex="-1">
+    <div class="{% block container_class %}container{% endblock %}">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+
+  {% block footer %}{% endblock %}
+
+  <script type="module" src="{{ url_for('static', filename='js/theme.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

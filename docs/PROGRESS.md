@@ -7,9 +7,9 @@
 
 ## Current Status
 
-**Phase: Implementation in progress — P0-D1-01 through P0-D1-07 complete.**
+**Phase: Implementation in progress — P0-D1-01 through P0-D1-08 complete.**
 
-Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic, the session-payload validator and text resolution now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. `app/texts.py` resolves passages and deterministic word-mode text and guards all content at startup. The frontend theme/CSS layer is the next task (P0-D1-08).
+Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic, the session-payload validator, text resolution and the frontend theme foundation now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. `app/texts.py` resolves passages and deterministic word-mode text and guards all content at startup. The shared frontend shell, self-hosted fonts, vendored Chart.js and flash-free light/dark themes are in place. Typing capture and the first routes are next (P0-D1-09 and P0-D1-10).
 
 ---
 
@@ -101,8 +101,21 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 - [x] Resolved `AMB-001` and `AMB-002` under ADR-027 (author-approved original content)
 - [x] `pytest tests/ -v`: **390 passed** (314 previous + 76 text-resolution cases)
 
+### Frontend foundation (2026-11-06)
+- [x] P0-D1-08: Created `app/static/css/tokens.css` with the approved light and dark palettes, typography, 8-pt spacing, layout, shape, motion and focus tokens
+- [x] Created `app/static/css/base.css` with the reset, self-hosted `@font-face` rules, global typography, application shell, nav, theme toggle, focus rings, reduced-motion handling and print-safe tokens
+- [x] Created `app/templates/base.html` with the shared shell, primary nav, skip link, theme toggle, CSS imports, font preloads and JS blocks
+- [x] Added the inline blocking theme initialisation script before the stylesheets; it reads `localStorage["tba-theme"]`, falls back to `prefers-color-scheme`, and removes `.no-transition` after load
+- [x] Created `app/static/js/theme.js` to persist toggle changes, keep the accessible label in sync, and dispatch `tba:themechange`
+- [x] Vendored Lexend and JetBrains Mono variable WOFF2 fonts (latin subset) with their OFL licence files
+- [x] Vendored Chart.js 4.4.7 UMD as `app/static/vendor/chart.umd.min.js` with its MIT licence; no runtime CDN use
+- [x] Added frontend smoke checks to `tests/test_infrastructure.py`: base-template rendering, script-before-stylesheet ordering, local static asset resolution, WOFF2 magic bytes and the vendored Chart.js header
+- [x] Verified in Chromium: dark fallback from the OS, toggle to light and back, persistence across reload, `.no-transition` removal, Lexend/JetBrains Mono loading, tabular figures, and zero console errors
+- [x] Recorded ADR-028 for asset provenance and the frontend foundation decisions
+- [x] `pytest tests/ -v`: **392 passed** (390 previous + 2 frontend checks)
+
 ### Application code
-- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, and P0-D1-07 text resolution; no routes, database, or frontend yet
+- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, and P0-D1-08 frontend foundation; no page routes, database or typing capture yet
 
 ---
 
@@ -117,7 +130,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 | P0-D1-05: Engine — key stats / heatmap | ✅ Complete (2026-11-06) |
 | P0-D1-06: Validators | ✅ Complete (2026-11-06) |
 | P0-D1-07: Text resolution | ✅ Complete (2026-11-06) |
-| P0-D1-08: Frontend — themes / CSS | ⬜ Not started |
+| P0-D1-08: Frontend — themes / CSS | ✅ Complete (2026-11-06) |
 | P0-D1-09: Frontend — capture / typing engine | ⬜ Not started |
 | P0-D1-10: First vertical slice | ⬜ Not started |
 | P0-D2-01: DB schema and connection | ⬜ Not started |
@@ -139,7 +152,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 
 **Day 1 vertical slice:** by end of Day 1, a user should be able to type, submit, and see metrics — even without DB persistence. The engine must pass all golden fixtures (A–G).
 
-Exact next task: **P0-D1-08** — frontend themes and CSS tokens (`app/static/css/tokens.css`, `base.css`, theme script, `base.html`, fonts, Chart.js vendor).
+Exact next task: **P0-D1-09** — frontend capture and typing engine (`app/static/js/capture.js`, `typing-engine.js`, `test.html`, `test.css`, `test-page.js`).
 
 ---
 
@@ -161,3 +174,6 @@ See `docs/DECISIONS.md` for open ambiguities:
 - `docs/UI_DESIGN.md` §7 references `docs/METRICS.md` §6 for the Wilson heuristic; correct during UI documentation cleanup.
 - `README.md` is not yet present; leave for P0-D3-05.
 - `app/routes/__init__.py` is not specified; decide when implementing routes.
+- Base-template nav links point at the future page routes and therefore 404 until P0-D1-10; this is deliberate (ADR-028).
+- Chart.js is vendored but not loaded by any page until the chart work (P0-D2-06).
+- Only the latin font subsets are vendored, matching the ASCII-only application content (ADR-028).

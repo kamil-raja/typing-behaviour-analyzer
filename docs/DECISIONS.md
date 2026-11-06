@@ -300,6 +300,21 @@ P0-D1-05 will map expected characters through `CHAR_TO_CODE` and merge the two m
 
 ---
 
+### ADR-028: Frontend asset provenance and theme foundation
+**Date:** 2026-11-06
+**Status:** Approved
+**Context:** P0-D1-08 requires self-hosted fonts and a locally vendored Chart.js build with no runtime CDN. The blueprint fixes the technology and the visual tokens but does not name exact asset versions, font subsets or file names. The inline theme bootstrap and the later toggle also need a clear division of responsibility.
+**Decision:**
+- Chart.js `4.4.7` is vendored as `app/static/vendor/chart.umd.min.js` (the minified UMD build) with its MIT licence at `app/static/vendor/CHARTJS-LICENSE.md`. It is not loaded by `base.html`; chart-using pages load it explicitly when those pages are built.
+- Lexend (`v26`) and JetBrains Mono (`v24`) are vendored as variable WOFF2 files in `app/static/fonts/`, with the two SIL OFL licence texts stored beside them. Only the latin subset is vendored because all application content is ASCII 32–126; out-of-subset glyphs use the documented fallback stacks.
+- The inline blocking script in `base.html` owns only the first paint: it reads `localStorage["tba-theme"]` in a try/catch, falls back to `prefers-color-scheme`, sets `data-theme`, and adds `.no-transition` until the window load event.
+- `app/static/js/theme.js` owns later toggles: it persists the choice in `tba-theme`, keeps the toggle's accessible label in sync, and dispatches `tba:themechange` with the active theme. It performs no metric or application work.
+- `base.html` uses literal path links for the four future pages because their endpoints do not exist until P0-D1-10; using `url_for` for missing endpoints would break template rendering. The links intentionally resolve to 404 until those routes land.
+- `tokens.css` is the only stylesheet permitted to contain raw colour values. Print media re-declares the light palette on both `:root` and `:root[data-theme="dark"]` so a dark session prints light.
+**Consequences:** Frontend assets work fully offline and their versions are reproducible. Upgrading Chart.js or either font requires replacing the file, updating the licence notice and recording a new ADR. The nav is structurally complete but not navigable until the page routes arrive.
+
+---
+
 ## Open Ambiguities
 
 ### AMB-001: Exact words in `words_en.json`

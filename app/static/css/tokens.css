@@ -1,0 +1,119 @@
+/* tokens.css — design tokens for the Typing Behaviour Analyzer.
+ *
+ * Layer responsibility: this is the only stylesheet that defines raw colour
+ * values. Layout and component styles consume these custom properties and
+ * must not contain colour literals (docs/UI_DESIGN.md §3, AGENTS.md §4).
+ *
+ * Light tokens live on :root; dark overrides live on :root[data-theme="dark"].
+ * Print always uses the light palette.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Light palette ("Cheesecake") */
+  --bg: #fdf0d5;
+  --surface: #f3e2bf;
+  --text: #3a3335;
+  --text-muted: #756a6d;
+  --accent: #8e2949;
+  --accent-2: #d91c81; /* large text and UI chrome only */
+  --error: #b3261e;
+  --error-bg: rgba(179, 38, 30, 0.14);
+  --border: rgba(58, 51, 53, 0.14);
+  --heat-good: #7fae6b;
+  --heat-mid: #e3b94f;
+  --heat-bad: #c9473d;
+  --heat-none: #e8d9b4;
+
+  /* Typography */
+  --font-ui: "Lexend", "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.5rem;
+  --font-size-2xl: 2rem;
+  --font-size-hero: clamp(2.5rem, 6vw, 4rem);
+  --font-size-passage: clamp(22px, 2.1vw, 30px);
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --line-height-tight: 1.2;
+  --line-height-base: 1.6;
+  --line-height-passage: 1.75;
+
+  /* Spacing — 8 pt grid with a 4 px half-step for compact controls */
+  --space-half: 4px;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 40px;
+  --space-6: 48px;
+  --space-7: 64px;
+  --space-8: 96px;
+  --page-gutter: clamp(16px, 4vw, 32px);
+
+  /* Layout */
+  --nav-height: 56px;
+  --content-max-width: 960px;
+  --passage-max-width: 62ch;
+  --z-nav: 10;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --border-width: 1px;
+  --caret-width: 2px;
+
+  /* Motion */
+  --motion-fast: 120ms;
+  --motion-base: 160ms;
+
+  /* State and focus */
+  --nav-running-opacity: 0.25;
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #171519;
+  --surface: #242027;
+  --text: #eee5e9;
+  --text-muted: #8a7f86;
+  --accent: #e28ab2;
+  --accent-2: #a85b83; /* large text and UI chrome only */
+  --error: #e46b75; /* approved fallback: #f2776b */
+  --error-bg: rgba(228, 107, 117, 0.18);
+  --border: rgba(238, 229, 233, 0.12);
+  --heat-good: #5f9e6e;
+  --heat-mid: #d6a84a;
+  --heat-bad: #e4575f;
+  --heat-none: #2e2a33;
+}
+
+/* Print output always uses the light palette, even when dark is active. */
+@media print {
+  :root,
+  :root[data-theme="dark"] {
+    color-scheme: light;
+
+    --bg: #fdf0d5;
+    --surface: #f3e2bf;
+    --text: #3a3335;
+    --text-muted: #756a6d;
+    --accent: #8e2949;
+    --accent-2: #d91c81;
+    --error: #b3261e;
+    --error-bg: rgba(179, 38, 30, 0.14);
+    --border: rgba(58, 51, 53, 0.14);
+    --heat-good: #7fae6b;
+    --heat-mid: #e3b94f;
+    --heat-bad: #c9473d;
+    --heat-none: #e8d9b4;
+  }
+}
