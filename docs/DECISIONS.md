@@ -213,6 +213,41 @@ The fixture-level label `timer_expiry` describes timer expiry. The engine and st
 
 ---
 
+### ADR-021: Metric edge-case guards
+**Date:** 2026-11-06
+**Status:** Approved
+**Context:** `docs/METRICS.md` defines the formulas but leaves four boundary cases to the database's "nullable = not computable" convention: zero active duration, zero keystrokes, no pauses, and display precision. These cases cannot occur in a saved session (`K ≥ 10`, `T ≥ 3000 ms`), but the engine can be called directly by tests and by the future API layer.
+**Decision:** The author approved these guards:
+- `T <= 0` → `gross_wpm` and `net_wpm` are `null` (never a division by zero).
+- `K = 0` → `accuracy_pct` and `error_rate` are `null`.
+- No pause-class intervals → `pause_count = 0`, `total_pause_ms = 0.0`, `longest_pause_ms = null`.
+- Percentages are stored unrounded; only `consistency_score` is rounded to one decimal place, as §8.6 explicitly requires.
+**Consequences:** Null consistently means "not computable". Fixtures A–G are unaffected because all have `T > 0` and `K > 0`. Accuracy tests compare display-rounded values (for example `66.666…` → `66.7`).
+
+---
+
+### ADR-022: Metric layer splits per-key attribution by source
+**Date:** 2026-11-06
+**Status:** Approved
+**Context:** `docs/METRICS.md` §10 says per-key IKI is added to `key_stats[expected_char]`, while §12.1 says observations and errors are attributed to the expected character's key via `CHAR_TO_CODE` and dwell is attributed to the physically pressed `event.code`. The `CHAR_TO_CODE` table is P0-D1-05, so `metrics.py` cannot yet produce the final `key_code`-keyed `session_key_stats` rows.
+**Decision:** `app.engine.metrics.compute_key_stats()` returns a `KeyStats` with two additive maps:
+- `observations_by_char` — `attempts`, `errors`, `iki_count`, `iki_sum_ms`, keyed by expected character (the exact `key_stats[expected_char]` form in §10).
+- `dwell_by_code` — `dwell_count`, `dwell_sum_ms`, keyed by physical `event.code`, including Backspace and excluding invalid dwells.
+
+P0-D1-05 will map expected characters through `CHAR_TO_CODE` and merge the two maps into `session_key_stats` rows.
+**Consequences:** No metric is computed against a guessed key mapping, and the per-key IKI definition remains exactly the §10 subset of `V`. The merge is explicitly deferred to the task that owns `CHAR_TO_CODE`.
+
+---
+
+### ADR-023: Fixture A IKI expectations follow the §8.5 sample-size rule
+**Date:** 2026-11-06
+**Status:** Approved
+**Context:** `docs/METRICS.md` §8.5 says all IKI statistics are `null` when `|V| < 5`, and regression group 8 requires `|V| < 5 → null stats`. Fixture A's §13 row (and blueprint §14.1) lists `V = [800, 800, 800]` with `mean = 800, SD = 0`, which contradicts the sample-size rule.
+**Decision:** The author ruled that §8.5 takes precedence. `tests/fixtures/golden_a.json` now expects `avg_iki_ms: null` and `iki_sd_ms: null`; the three valid intervals remain listed as `valid_intervals_ms`. The fixture's gross, net, accuracy, interval and pause values are unchanged.
+**Consequences:** The fixture no longer asserts an unreachable mean/SD for three intervals. A synthetic test with five valid intervals verifies that mean, median, sample SD and CV are computed when the minimum is met.
+
+---
+
 ## Open Ambiguities
 
 ### AMB-001: Exact words in `words_en.json`

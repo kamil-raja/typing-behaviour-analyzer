@@ -41,16 +41,16 @@
 - [x] Assert invariants on every fixture: `E = U + Ec + Eu`, `K = C + E`, `N ≤ K`
 - [x] **Acceptance:** all fixture tests pass; **34 tests pass** in the full suite.
 - [x] **Files touched:** `app/engine/__init__.py`, `app/engine/replay.py`, `tests/test_replay.py`, `tests/test_fixtures.py`, `tests/fixtures/golden_f.json`, `tests/fixtures/golden_g.json`
-- **Commit (deferred):** `feat(engine): replay — green on fixtures A–G` — not performed; commits require explicit approval.
+- **Commit:** `e9e2215 feat(engine): implement event replay` — committed externally; no commit was made by the agent that wrote the handoff.
 
 ### P0-D1-04: Engine — metrics
-- [ ] Implement `app/engine/metrics.py`: all formulas from `docs/METRICS.md` (gross WPM, net WPM, accuracy, final-text accuracy, dwell, IKI stats, consistency, pause stats, per-key IKI, error accounting)
-- [ ] Include zero-mean guard for CV calculation
-- [ ] Write `tests/test_metrics.py`: verify exact expected values from fixtures A–G (Gross, Net, accuracy, intervals, pauses)
-- [ ] Assert `Net ≤ Gross` on every fixture
-- [ ] **Acceptance:** all metric tests pass with hand-computed values
-- [ ] **Files touched:** `app/engine/metrics.py`, `tests/test_metrics.py`
-- [ ] **Commit:** `feat(engine): metrics — green on all fixtures`
+- [x] Implement `app/engine/metrics.py`: all formulas from `docs/METRICS.md` (gross WPM, net WPM, accuracy, final-text accuracy, dwell, IKI stats, consistency, pause stats, per-key IKI, error accounting)
+- [x] Include zero-mean guard for CV calculation
+- [x] Write `tests/test_metrics.py`: verify exact expected values from fixtures A–G (Gross, Net, accuracy, intervals, pauses)
+- [x] Assert `Net ≤ Gross` on every fixture
+- [x] **Acceptance:** all metric tests pass with hand-computed values
+- [x] **Files touched:** `app/engine/metrics.py`, `app/engine/__init__.py`, `tests/test_metrics.py`, `tests/test_replay.py`, `tests/fixtures/golden_a.json`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- **Commit (deferred):** `feat(engine): metrics — green on all fixtures` — not performed; commits require explicit approval.
 
 ### P0-D1-05: Engine — key stats and heatmap classification
 - [ ] Implement `app/engine/keys.py`:

@@ -7,9 +7,9 @@
 
 ## Current Status
 
-**Phase: Implementation in progress — P0-D1-01, P0-D1-02 and P0-D1-03 complete.**
+**Phase: Implementation in progress — P0-D1-01 through P0-D1-04 complete.**
 
-Documentation, the minimum Flask application foundation, the pytest infrastructure, and the replay engine now exist. All seven golden examples pass through replay, including fixture G's approved AMB-005 values. Metric computation is the next task (P0-D1-04).
+Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, and the metric layer now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Per-key `CHAR_TO_CODE` mapping and heatmap classification are the next task (P0-D1-05).
 
 ---
 
@@ -56,8 +56,19 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 - [x] Resolved AMB-005 with the approved fixture G text, 2000 ms limit, `timer_expiry` fixture label, and `T = 2000` (ADR-019)
 - [x] `pytest tests/ -v`: **34 passed**
 
+### Metric engine (2026-11-06)
+- [x] P0-D1-04: Created `app/engine/metrics.py` with every formula from `docs/METRICS.md`
+- [x] Implemented Gross WPM, Net WPM, primary accuracy, final-text accuracy, error rate, dwell statistics, interval classification (`V`, zero intervals, pauses), IKI mean/median/sample SD/CV, consistency, pause totals, and error accounting
+- [x] Added the zero-mean guard for CV (`coefficient_of_variation`)
+- [x] Extended `analyze_session()` to return `SessionAnalysis` (replay + metrics + per-key sums)
+- [x] Implemented per-key clean-transition IKI keyed by expected character and valid dwell keyed by physical code
+- [x] Created `tests/test_metrics.py`: golden fixtures A–G plus interval boundaries, IKI gates, consistency 29/30, zero-mean CV, dwell validity, and per-key clean transitions
+- [x] Asserted `Net ≤ Gross` on every fixture, including incomplete fixture E
+- [x] Resolved the fixture-A IKI conflict in favour of the §8.5 sample-size rule (ADR-023)
+- [x] `pytest tests/ -v`: **91 passed**
+
 ### Application code
-- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, and P0-D1-03 replay; no metrics, validators, routes, database, or frontend yet
+- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, and P0-D1-04 metrics; no keys/heatmap, validators, routes, database, or frontend yet
 
 ---
 
@@ -68,7 +79,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 | P0-D1-01: Repository scaffold | ✅ Complete (2026-11-06) |
 | P0-D1-02: Tests infrastructure | ✅ Complete (2026-11-06) |
 | P0-D1-03: Engine — replay | ✅ Complete (2026-11-06) |
-| P0-D1-04: Engine — metrics | ⬜ Not started |
+| P0-D1-04: Engine — metrics | ✅ Complete (2026-11-06) |
 | P0-D1-05: Engine — key stats / heatmap | ⬜ Not started |
 | P0-D1-06: Validators | ⬜ Not started |
 | P0-D1-07: Text resolution | ⬜ Not started |
@@ -94,7 +105,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 
 **Day 1 vertical slice:** by end of Day 1, a user should be able to type, submit, and see metrics — even without DB persistence. The engine must pass all golden fixtures (A–G).
 
-Exact next task: **P0-D1-04** — engine metrics (`app/engine/metrics.py`) and `tests/test_metrics.py`.
+Exact next task: **P0-D1-05** — engine key stats and heatmap classification (`app/engine/keys.py`, `tests/test_keys.py`).
 
 ---
 
@@ -107,6 +118,8 @@ See `docs/DECISIONS.md` for open ambiguities:
 - **AMB-004:** Moving average window behaviour at < 5 sessions (assumed trailing window with expanding for early sessions)
 
 ### Known issues carried forward
+- Per-key attribution: `metrics.py` returns observations/IKI keyed by expected character and dwell keyed by physical code. The `CHAR_TO_CODE` merge into `session_key_stats` is P0-D1-05 (ADR-022).
+- The fixture-A IKI contradiction is closed under ADR-023; `golden_a.json` now expects null IKI statistics because `|V| = 3 < 5`.
 - Word list and passage texts are missing; handle in P0-D1-07.
 - Timer-boundary behaviour is now covered by replay tests; P0-D1-06 still lists a boundary test, so keep validator coverage focused on schema and sequence checks.
 - Client-supplied `ended_at_ms`/`end_reason` handling ("reject" vs "ignore") remains ambiguous; decide before validator implementation.

@@ -170,18 +170,18 @@ def test_golden_e_is_an_incomplete_passage() -> None:
 
 
 def test_analyze_session_exposes_replay_stage() -> None:
-    """The engine entry point currently returns the replay result."""
+    """The engine entry point exposes the replay result."""
     fixture = load_fixture("A")
-    result = analyze_session(
+    analysis = analyze_session(
         text=fixture["text"],
         mode=fixture["mode"],
         duration_limit_ms=fixture["duration_limit_ms"],
         events=fixture["events"],
     )
 
-    assert isinstance(result, ReplayResult)
-    assert result.K == 4
-    assert result.end_reason == "completed"
+    assert isinstance(analysis.replay, ReplayResult)
+    assert analysis.replay.K == 4
+    assert analysis.replay.end_reason == "completed"
 
 
 def test_repeat_printable_keydown_is_discarded() -> None:
