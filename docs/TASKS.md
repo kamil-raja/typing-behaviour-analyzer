@@ -136,7 +136,7 @@
 - [x] Show metrics on a minimal plain results page (in-memory, no DB) at `GET /results/<session_id>` (ADR-032)
 - [x] Add `app/session_store.py`, `app/templates/results.html`, `app/static/css/components.css`, `tests/test_sessions.py`
 - [x] **Acceptance:** full flow works: type → submit → see numbers. **434 tests pass**; Chromium verified time-up and passage-completion flows. `pytest` green.
-- [ ] **Commit:** `feat(vertical-slice): type → POST → metrics displayed` — **deferred by instruction; nothing committed or pushed.**
+- [x] **Commit:** `feat(core): complete first typing analysis workflow` (`40e41dc`, committed externally)
 - [x] **Files touched:** `app/routes/api.py`, `app/routes/pages.py`, `app/__init__.py`, `app/config.py`, `app/session_store.py`, `app/engine/__init__.py`, `app/engine/metrics.py`, `app/templates/results.html`, `app/static/css/components.css`, `app/static/js/capture.js`, `app/static/js/test-page.js`, `tests/test_sessions.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
 
 ---

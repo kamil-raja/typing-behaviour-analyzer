@@ -32,15 +32,30 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 
 ## Current State (as of 2026-11-06)
 
+### Development server (Windows)
+
+Run the server in a normal PowerShell terminal, never through a detached shell:
+
+```powershell
+cd K:\Projects\typing-behaviour-analyzer
+.\.venv\Scripts\python.exe run.py
+```
+
+Open `http://127.0.0.1:5000/`. Stop with `Ctrl+C` in the same terminal; restart by running the command again.
+
+`run.py` uses `app.run(host="127.0.0.1", port=5000, debug=True, use_reloader=False)`. The reloader is intentionally off so there is no Flask parent/child process pair and `Ctrl+C` stops the server cleanly. Debug mode remains enabled.
+
+Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so Task Manager still shows two Python processes (the shim plus the real interpreter). That is not the Flask reloader; the startup log contains no `Restarting with stat` line, and `Ctrl+C` terminates both processes.
+
 ### Git
 
 | Field | Value |
 |---|---|
 | **Branch** | `feature/project-foundation` |
-| **Status** | Uncommitted P0-D1-10 changes: new `app/session_store.py`, `app/templates/results.html`, `app/static/css/components.css`, `tests/test_sessions.py`; modified `app/routes/api.py`, `app/routes/pages.py`, `app/__init__.py`, `app/config.py`, `app/engine/__init__.py`, `app/engine/metrics.py`, `app/static/js/capture.js`, `app/static/js/test-page.js`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md` |
-| **Last commit** | `20864ab feat(ui): implement interactive typing test` (P0-D1-09, committed externally) |
+| **Status** | Uncommitted development-server fix and doc sync: `run.py`, `docs/HANDOFF.md`, `docs/TASKS.md`. P0-D1-10 was committed externally as `40e41dc`. |
+| **Last commit** | `40e41dc feat(core): complete first typing analysis workflow` (P0-D1-10, committed externally) |
 | **Tags** | None yet |
-| **Commit/push** | **None performed by this agent for P0-D1-10.** P0-D1-01 was committed in `9c02975`; P0-D1-02 in `147ec1e`; P0-D1-03 in `e9e2215`; P0-D1-04 in `61d8c36`; P0-D1-05 in `55130e1`; P0-D1-06 in `1c0137a`; P0-D1-07 in `4599be0`; P0-D1-08 in `3cc8a56`; P0-D1-09 in `20864ab`. The branch is 8 commits ahead of `origin/feature/project-foundation`; nothing was pushed. |
+| **Commit/push** | **None performed by this agent.** P0-D1-01 was committed in `9c02975`; P0-D1-02 in `147ec1e`; P0-D1-03 in `e9e2215`; P0-D1-04 in `61d8c36`; P0-D1-05 in `55130e1`; P0-D1-06 in `1c0137a`; P0-D1-07 in `4599be0`; P0-D1-08 in `3cc8a56`; P0-D1-09 in `20864ab`; P0-D1-10 in `40e41dc`. The branch is in sync with `origin/feature/project-foundation`. |
 
 `.venv/`, `__pycache__/`, and `instance/` are ignored and are not part of the working-tree changes.
 
@@ -48,7 +63,7 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 
 | File | Purpose |
 |---|---|
-| `run.py` | Development entry point: `app = create_app(); app.run(debug=True)` |
+| `run.py` | Development entry point: `create_app()` plus `app.run(host="127.0.0.1", port=5000, debug=True, use_reloader=False)` for a single, Ctrl+C-friendly server process |
 | `requirements.txt` | Direct dependencies only: `Flask>=3.0`, `pytest>=8.0` |
 | `app/__init__.py` | `create_app()` factory; creates the Flask app and loads `app.config` via `from_object` |
 | `app/config.py` | All 15 named metric thresholds from `docs/METRICS.md` §14; no metric calculations |
@@ -275,7 +290,7 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 5. **`docs/UI_DESIGN.md` §7** references `docs/METRICS.md` §6 for the Wilson heuristic; it should be §12. Correct during UI documentation cleanup.
 6. **`README.md`** is absent; leave for P0-D3-05.
 7. **`app/routes/__init__.py`** now exists as the route package docstring; `pages.py` and `api.py` live beside it and are registered in `create_app()`.
-8. **P0-D1-09 is committed** as `20864ab` (externally). **P0-D1-10 changes are uncommitted.** HEAD is `20864ab`. The branch is 8 commits ahead of `origin/feature/project-foundation`; do not commit or push without approval.
+8. **P0-D1-10 is committed** as `40e41dc` (externally). The uncommitted change in the working tree is the development-server fix and its doc sync (`run.py`, `docs/HANDOFF.md`, `docs/TASKS.md`). HEAD is `40e41dc`; do not commit or push without approval.
 9. **Fixture A's IKI values are null by decision.** The §13 row's mean/SD arithmetic conflicts with §8.5; the author ruled §8.5 wins (ADR-023). Do not "fix" this by restoring `800.0`/`0.0`.
 10. **`session_key_stats` rows are ready for persistence but not yet stored.** P0-D2-02 owns the repository insert; `SessionKeyStat` field names match the blueprint §9 columns exactly.
 11. **Heatmap classification is not yet wired to an endpoint.** `classify_observation()` and `pooled_baseline_error_rate()` are reused by P0-D3-01; do not duplicate the formula in routes or SQL.
@@ -290,6 +305,7 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 20. **The session store is in memory only (ADR-032).** `app.extensions["tba_session_store"]` is replaced by the repository in P0-D2-02; results disappear on restart. Do not add a database table or SQL outside the approved P0-D2 tasks.
 21. **`GET /results/<id>` is a temporary server-rendered page.** P0-D2-03 adds `GET /api/sessions/<id>` and the full results API. Reuse `results.html` rather than creating a second results surface.
 22. **`invalid_dwell_count` is part of `SessionMetrics`.** Keep it in sync with the `invalid_dwell` warning (`count > 0` emits the warning). Do not re-derive it in routes.
+23. **The development server runs without the reloader.** `run.py` calls `app.run(host="127.0.0.1", port=5000, debug=True, use_reloader=False)`. Do not reintroduce the reloader, and do not launch the server through a detached shell; `Ctrl+C` in the starting terminal is the supported stop.
 
 ---
 
