@@ -110,24 +110,28 @@
 - [x] **Files touched:** `app/static/css/tokens.css`, `app/static/css/base.css`, `app/static/js/theme.js`, `app/templates/base.html`, `app/static/fonts/` (two WOFF2 files + two OFL licences), `app/static/vendor/chart.umd.min.js` + licence, `tests/test_infrastructure.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
 
 ### P0-D1-09: Frontend — capture and typing engine
-- [ ] Implement `app/static/js/capture.js` per `docs/EVENT_SCHEMA.md`:
+- [x] Implement `app/static/js/capture.js` per `docs/EVENT_SCHEMA.md`:
   - Keydown/keyup listeners on the passage viewport
   - Pending map, repeat handling, orphan up tracking
   - `t` calculation from first accepted keydown
   - Timestamp fallback with diagnostic logging
   - Focus/blur/visibilitychange handlers
   - Full-buffer enforcement
-- [ ] Implement `app/static/js/typing-engine.js`: UI state machine (idle → running → finished/cancelled), live WPM/accuracy display (provisional), caret movement, character state rendering
-- [ ] Implement `app/templates/test.html` and `app/static/css/test.css`
-- [ ] Implement `app/static/js/test-page.js` (config strip, text fetch, test orchestration)
-- [ ] **Acceptance:** typing test runs in browser; events are captured correctly; Tab never intercepted; focus loss cancels test; Esc cancels test
+- [x] Implement `app/static/js/typing-engine.js`: UI state machine (idle → running → finished/cancelled), live WPM/accuracy display (provisional), caret movement, character state rendering
+- [x] Implement `app/templates/test.html` and `app/static/css/test.css`
+- [x] Implement `app/static/js/test-page.js` (config strip, text fetch, test orchestration)
+- [x] Pulled forward from P0-D1-10 (ADR-030): `app/routes/__init__.py`, `app/routes/pages.py` with `GET /`, `app/routes/api.py` with the three text GET endpoints, and blueprint registration in `create_app()`
+- [x] Added `tests/test_api.py`; updated `tests/test_infrastructure.py` for the 200 page response and the new static assets
+- [x] **Acceptance:** typing test runs in browser; events are captured correctly; Tab never intercepted; focus loss cancels test; Esc cancels test. **410 tests pass** in the full suite.
+- [x] **Files touched:** `app/static/js/capture.js`, `app/static/js/typing-engine.js`, `app/static/js/test-page.js`, `app/templates/test.html`, `app/static/css/test.css`, `app/routes/__init__.py`, `app/routes/pages.py`, `app/routes/api.py`, `app/__init__.py`, `tests/test_api.py`, `tests/test_infrastructure.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
 
 ### P0-D1-10: First vertical slice — POST /api/sessions
+- [x] Implement `app/routes/pages.py`: basic `GET /` route serving `test.html` — **pulled forward into P0-D1-09** (ADR-030)
+- [x] Add the three P0 text GET endpoints — **pulled forward into P0-D1-09** (ADR-030)
+- [x] Wire up the page and text API blueprints in `create_app()` — **pulled forward into P0-D1-09** (ADR-030)
 - [ ] Implement `app/routes/api.py`: `POST /api/sessions` route
   - Parse JSON → validate → resolve text → engine.analyze_session() → return 201 with metrics
   - No DB persistence yet (in-memory response only)
-- [ ] Implement `app/routes/pages.py`: basic `GET /` route serving `test.html`
-- [ ] Wire up routes in `create_app()`
 - [ ] Show metrics on a minimal plain results page (can be in-memory, no DB)
 - [ ] **Acceptance:** full flow works: type → submit → see numbers. `pytest` green.
 - [ ] **Commit:** `feat(vertical-slice): type → POST → metrics displayed`

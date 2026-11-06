@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Typing Test · Typing Behaviour Analyzer{% endblock %}
+{% block description %}Take a typing test and analyse your speed, accuracy and key-level behaviour.{% endblock %}
+{% block body_class %}page-test{% endblock %}
+
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/test.css') }}">
+{% endblock %}
+
+{% block content %}
+<section
+  class="test-shell"
+  id="test-shell"
+  data-word-counts='{{ word_counts|tojson }}'
+  aria-labelledby="test-heading"
+>
+  <h1 class="visually-hidden" id="test-heading">Typing test</h1>
+
+  <div class="config-strip" id="config-strip" aria-label="Test configuration">
+    <div class="config-group" role="group" aria-labelledby="mode-label">
+      <span class="config-label" id="mode-label">Mode</span>
+      <div class="segmented" id="mode-control">
+        <button class="segmented__option is-active" type="button" data-mode="time" aria-pressed="true">time</button>
+        <button class="segmented__option" type="button" data-mode="passage" aria-pressed="false">passage</button>
+      </div>
+    </div>
+
+    <div class="config-group" id="duration-group" role="group" aria-labelledby="duration-label">
+      <span class="config-label" id="duration-label">Duration</span>
+      <div class="segmented" id="duration-control">
+        <button class="segmented__option" type="button" data-duration="15" aria-pressed="false">15s</button>
+        <button class="segmented__option is-active" type="button" data-duration="30" aria-pressed="true">30s</button>
+        <button class="segmented__option" type="button" data-duration="60" aria-pressed="false">60s</button>
+      </div>
+    </div>
+
+    <div class="config-group" id="passage-group" role="group" aria-labelledby="passage-label" hidden>
+      <label class="config-label" id="passage-label" for="passage-select">Passage</label>
+      <select class="select" id="passage-select" disabled>
+        <option value="">Loading passages…</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="live-row" id="live-row" hidden>
+    <span class="live-row__badge">provisional</span>
+    <div class="live-metric">
+      <span class="live-metric__label" id="timer-label">time left</span>
+      <span class="live-metric__value numeric" id="timer-value">30s</span>
+    </div>
+    <div class="live-metric">
+      <span class="live-metric__label">wpm</span>
+      <span class="live-metric__value numeric" id="wpm-value">0</span>
+    </div>
+    <div class="live-metric">
+      <span class="live-metric__label">accuracy</span>
+      <span class="live-metric__value numeric" id="accuracy-value">100%</span>
+    </div>
+  </div>
+
+  <div
+    class="passage-viewport"
+    id="passage-viewport"
+    tabindex="0"
+    data-state="idle"
+    aria-label="Typing area. Start typing to begin. Press Escape to restart."
+    aria-describedby="test-status"
+  >
+    <div class="passage-window">
+      <div class="passage-track" id="passage-track">
+        <div class="passage-text" id="passage-text"></div>
+        <span class="caret" id="caret" aria-hidden="true"></span>
+      </div>
+    </div>
+    <p class="test-status" id="test-status" role="status" aria-live="polite"></p>
+  </div>
+</section>
+{% endblock %}
+
+{% block footer %}
+<footer class="site-footer container test-footer">
+  <p><kbd>esc</kbd> restart</p>
+</footer>
+{% endblock %}
+
+{% block scripts %}
+  <script type="module" src="{{ url_for('static', filename='js/test-page.js') }}"></script>
+{% endblock %}

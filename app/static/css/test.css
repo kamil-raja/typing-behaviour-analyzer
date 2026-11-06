@@ -1,0 +1,289 @@
+/* test.css — typing test screen.
+ *
+ * Layer responsibility: layout and character presentation for the test page.
+ * Every colour comes from tokens.css; no raw colour values belong here.
+ */
+
+/* The HTML hidden attribute must win over component display rules. */
+[hidden] {
+  display: none !important;
+}
+
+.page-test .site-main {
+  padding-block: var(--space-3) var(--space-4);
+}
+
+.test-shell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: var(--content-max-width);
+  margin-inline: auto;
+}
+
+/* Config strip */
+.config-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.config-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.config-label {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+}
+
+.segmented {
+  display: inline-flex;
+  overflow: hidden;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+}
+
+.segmented__option {
+  padding: var(--space-half) var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+  transition: background-color var(--motion-fast) ease,
+    color var(--motion-fast) ease;
+}
+
+.segmented__option + .segmented__option {
+  border-left: var(--border-width) solid var(--border);
+}
+
+.segmented__option:hover {
+  color: var(--text);
+}
+
+.segmented__option.is-active,
+.segmented__option[aria-pressed="true"] {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.select {
+  max-width: 46ch;
+  padding: var(--space-half) var(--space-1);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--font-size-sm);
+}
+
+.select:disabled {
+  color: var(--text-muted);
+  cursor: progress;
+}
+
+/* Provisional live row */
+.live-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-1) var(--space-2);
+  border-bottom: var(--border-width) solid var(--border);
+}
+
+.live-row__badge {
+  padding: 0 var(--space-1);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.04em;
+}
+
+.live-metric {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+}
+
+.live-metric__label {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.live-metric__value {
+  color: var(--text);
+  font-size: var(--font-size-lg);
+}
+
+/* Passage viewport */
+.passage-viewport {
+  position: relative;
+  padding: var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  cursor: text;
+}
+
+.passage-viewport:focus-visible {
+  outline: var(--focus-ring-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.passage-window {
+  position: relative;
+  height: calc(var(--font-size-passage) * var(--line-height-passage) * 3);
+  overflow: hidden;
+}
+
+.passage-track {
+  position: relative;
+  transform: translateY(0);
+  transition: transform var(--motion-fast) ease;
+  will-change: transform;
+}
+
+.passage-text {
+  max-width: var(--passage-max-width);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-passage);
+  font-variant-ligatures: none;
+  line-height: var(--line-height-passage);
+  white-space: pre-wrap;
+  overflow-wrap: normal;
+  word-break: normal;
+  user-select: none;
+}
+
+.char {
+  color: var(--text-muted);
+}
+
+.char.is-correct {
+  color: var(--text);
+}
+
+.char.is-incorrect {
+  border-radius: 2px;
+  background: var(--error-bg);
+  color: var(--error);
+  text-decoration: underline;
+  text-decoration-color: var(--error);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.18em;
+}
+
+.caret {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--caret-width);
+  background: var(--accent);
+  border-radius: 1px;
+  pointer-events: none;
+  animation: tba-caret-blink 1s step-end infinite;
+}
+
+.passage-viewport:not(:focus) .caret {
+  opacity: 0;
+  animation: none;
+}
+
+.passage-viewport[data-state="running"] .caret {
+  opacity: 1;
+  animation: none;
+}
+
+.passage-viewport[data-state="finished"] .caret {
+  display: none;
+}
+
+@keyframes tba-caret-blink {
+  0%,
+  50% {
+    opacity: 1;
+  }
+
+  50.01%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Status and footer */
+.test-status {
+  min-height: 1.5em;
+  margin-top: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.test-status[data-kind="warning"],
+.test-status[data-kind="error"],
+.test-status[data-kind="fix"] {
+  color: var(--error);
+}
+
+.test-status[data-kind="finished"] {
+  color: var(--text);
+}
+
+.test-footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.test-footer p {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+kbd {
+  padding: 0 var(--space-half);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--font-size-xs);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The global zero-duration rule would otherwise leave the blink hidden. */
+  .passage-viewport:focus .caret {
+    animation: none !important;
+    opacity: 1;
+  }
+}
+
+@media (max-width: 640px) {
+  .config-strip {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--space-2);
+  }
+
+  .config-group {
+    flex-wrap: wrap;
+  }
+
+  .passage-viewport {
+    padding: var(--space-2);
+  }
+
+  .select {
+    max-width: 100%;
+  }
+}

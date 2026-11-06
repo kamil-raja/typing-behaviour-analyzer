@@ -315,6 +315,34 @@ P0-D1-05 will map expected characters through `CHAR_TO_CODE` and merge the two m
 
 ---
 
+### ADR-029: Text API response shapes and the passage selector label (resolves AMB-003)
+**Date:** 2026-11-06
+**Status:** Approved
+**Context:** Blueprint §10 fixes the three P0 text endpoints but only says they return a `text_ref` plus `text`. `AMB-003` leaves the passage selector's option text unspecified. The test page needs a display label before it can populate the selector, and the contract must be frozen before the page is wired to it.
+**Decision:**
+- `GET /api/texts/passages` returns `{"passages": [{"text_ref": {"type": "passage", "id": ...}, "label": ...}]}` in frozen `passages.json` order. It does **not** include each passage's full text, so the list stays small.
+- `label` is the first 40 characters of the passage with trailing whitespace removed, followed by `"..."` when the passage is longer than 40 characters. No title field is added to `passages.json`.
+- `GET /api/texts/passages/<id>` returns `{"text_ref": {"type": "passage", "id": ...}, "text": ...}`. An unknown id returns `404 TEXT_NOT_FOUND` in the documented error shape.
+- `GET /api/texts/words?count=N` returns `{"text_ref": {"type": "words", "seed": <server-picked int>, "count": N}, "text": ...}`. The server picks `seed` with `secrets.randbelow(2**31)`; the client never chooses it.
+- `count` is required and must be an integer from 10 to 400 inclusive. Missing, non-integer, or out-of-range values return `422 VALIDATION_ERROR` with a detail whose `field` is `"count"`.
+- The page never embeds passage text in the HTML. It fetches the chosen text from these endpoints, preserving the architecture rule that pages call `/api/...`.
+**Consequences:** The passage list is stable and cacheable; changing the label length or response shape is an API change. `AMB-003` is resolved by this decision. The client still sends only `text_ref` when session submission arrives, never the text body.
+
+---
+
+### ADR-030: Pulling `GET /` and the text endpoints forward from P0-D1-10
+**Date:** 2026-11-06
+**Status:** Approved
+**Context:** P0-D1-09 builds the typing screen, but `docs/TASKS.md` assigned `GET /` to P0-D1-10 and did not assign the three P0 text endpoints to any task. Without a page route and text API, the completed screen would not be reachable or able to load a passage. The user asked for the real interface at `http://127.0.0.1:5000/` as early as possible.
+**Decision:**
+- Pull forward only: `app/routes/__init__.py`, `app/routes/pages.py` with `GET /`, `app/routes/api.py` with the three text GET endpoints, and blueprint registration in `create_app()`.
+- Keep the rest of P0-D1-10 out of scope: no `POST /api/sessions`, no results page, no persistence, no history or analytics.
+- P0-D1-10 now covers session submission and the minimal results view only; the page route and text endpoints are already complete.
+- Tests for the pulled-forward surface live in `tests/test_api.py`; `tests/test_infrastructure.py` expects `GET /` to return 200 and includes the new static assets.
+**Consequences:** The typing screen is reachable and usable now, but a finished attempt only shows client-side provisional numbers. The server remains the sole owner of final metrics, as required by AGENTS.md §3.
+
+---
+
 ## Open Ambiguities
 
 ### AMB-001: Exact words in `words_en.json`
@@ -335,9 +363,10 @@ P0-D1-05 will map expected characters through `CHAR_TO_CODE` and merge the two m
 
 ### AMB-003: Passage selector UI — ordered or labelled?
 **Date:** 2026-11-06
-**Status:** Open
+**Status:** Resolved by ADR-029 (2026-11-06)
 **Context:** The blueprint mentions a passage selector in the config strip but does not specify whether passages have titles, descriptions, or any ordering rule.
 **Decision:** Use passage `id` (e.g., `p_001`) as internal identifier; display a short label or first ~40 chars as the `<select>` option text. Record here if a different approach is chosen.
+**Resolution:** `GET /api/texts/passages` returns the frozen source order with a `label` built from the first 40 characters plus `"..."` when longer; no title field is added. See ADR-029.
 
 ### AMB-004: Moving average in progress chart — window or cumulative?
 **Date:** 2026-11-06

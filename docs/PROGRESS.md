@@ -7,9 +7,9 @@
 
 ## Current Status
 
-**Phase: Implementation in progress — P0-D1-01 through P0-D1-08 complete.**
+**Phase: Implementation in progress — P0-D1-01 through P0-D1-09 complete.**
 
-Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic, the session-payload validator, text resolution and the frontend theme foundation now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. `app/texts.py` resolves passages and deterministic word-mode text and guards all content at startup. The shared frontend shell, self-hosted fonts, vendored Chart.js and flash-free light/dark themes are in place. Typing capture and the first routes are next (P0-D1-09 and P0-D1-10).
+Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic, the session-payload validator, text resolution, the frontend theme foundation, keyboard capture and the live typing screen now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. `app/texts.py` resolves passages and deterministic word-mode text and guards all content at startup. The test screen is reachable at `GET /`, loads time-mode words or a passage through the documented text API, and shows clearly-labelled provisional stats. Esc restarts, Tab is never intercepted, focus loss cancels, and a full buffer with errors blocks completion. Session submission and final server metrics remain in P0-D1-10.
 
 ---
 
@@ -114,8 +114,19 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 - [x] Recorded ADR-028 for asset provenance and the frontend foundation decisions
 - [x] `pytest tests/ -v`: **392 passed** (390 previous + 2 frontend checks)
 
+### Typing screen (2026-11-06)
+- [x] P0-D1-09: Created `app/static/js/capture.js` with the documented printable/Backspace rules, pending-key map, repeat handling, AltGr treatment, timestamp fallback logging, keyup pairing, focus/window/visibility cancellation and listener cleanup
+- [x] Created `app/static/js/typing-engine.js`: idle → running → finished attempt state, character-state rendering, caret tracking and scroll-follows-caret, provisional time/WPM/accuracy, completion, timer expiry, cancellation and full-buffer messaging
+- [x] Created `app/templates/test.html` and `app/static/css/test.css` using only design tokens, with the config strip, provisional live row, three-line passage viewport, caret and Esc hint
+- [x] Created `app/static/js/test-page.js`: time/passage configuration, aborted/token-guarded text fetch, passage selector population, Esc restart, focus handling and capture/engine wiring
+- [x] Pulled forward `GET /` and the three P0 text endpoints from P0-D1-10 (ADR-030): `app/routes/__init__.py`, `app/routes/pages.py`, `app/routes/api.py`, blueprint registration in `app/__init__.py`
+- [x] Frozen the text API response shapes and passage label rule; resolved `AMB-003` (ADR-029)
+- [x] Added `tests/test_api.py` for the page and text endpoints and updated `tests/test_infrastructure.py` for the 200 page response and new static assets
+- [x] Verified in Chromium: text loads from the API, live provisional stats update, correct/incorrect character states, Backspace, completion, timer expiry at the boundary, full-buffer blocking, Tab not prevented, focus-loss cancellation, Esc restart, caret line scrolling and light/dark persistence; zero console errors
+- [x] `pytest tests/ -v`: **410 passed** (392 previous + 18 route/pulled-forward cases)
+
 ### Application code
-- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, and P0-D1-08 frontend foundation; no page routes, database or typing capture yet
+- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, and P0-D1-09 typing screen with the pulled-forward page/text routes; no session submission, results page, database or analytics yet
 
 ---
 
@@ -131,8 +142,8 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 | P0-D1-06: Validators | ✅ Complete (2026-11-06) |
 | P0-D1-07: Text resolution | ✅ Complete (2026-11-06) |
 | P0-D1-08: Frontend — themes / CSS | ✅ Complete (2026-11-06) |
-| P0-D1-09: Frontend — capture / typing engine | ⬜ Not started |
-| P0-D1-10: First vertical slice | ⬜ Not started |
+| P0-D1-09: Frontend — capture / typing engine | ✅ Complete (2026-11-06) |
+| P0-D1-10: First vertical slice | 🟨 Partially complete — `GET /` and text endpoints pulled forward (ADR-030); `POST /api/sessions` and results remain |
 | P0-D2-01: DB schema and connection | ⬜ Not started |
 | P0-D2-02: Repository and persistence | ⬜ Not started |
 | P0-D2-03: Results page (full) | ⬜ Not started |

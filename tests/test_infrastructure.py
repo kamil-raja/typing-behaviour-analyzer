@@ -11,7 +11,8 @@ def test_app_and_client_fixtures(app: Flask, client: FlaskClient) -> None:
     """The app fixture is in testing mode and the client can call it."""
     assert app.config["TESTING"] is True
     response = client.get("/")
-    assert response.status_code == 404
+    assert response.status_code == 200
+    assert b'id="passage-viewport"' in response.data
 
 
 def test_db_conn_fixture_enables_foreign_keys(db_conn: sqlite3.Connection) -> None:
@@ -57,7 +58,11 @@ def test_frontend_assets_resolve(client: FlaskClient) -> None:
     text_assets = [
         "/static/css/tokens.css",
         "/static/css/base.css",
+        "/static/css/test.css",
         "/static/js/theme.js",
+        "/static/js/capture.js",
+        "/static/js/typing-engine.js",
+        "/static/js/test-page.js",
         "/static/fonts/OFL-Lexend.txt",
         "/static/fonts/OFL-JetBrainsMono.txt",
     ]

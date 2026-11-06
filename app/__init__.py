@@ -3,6 +3,8 @@
 from flask import Flask
 
 from . import config
+from .routes.api import api_bp
+from .routes.pages import pages_bp
 from .texts import validate_text_sources
 
 
@@ -15,4 +17,6 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config.from_object(config)
     validate_text_sources()
+    app.register_blueprint(pages_bp)
+    app.register_blueprint(api_bp)
     return app

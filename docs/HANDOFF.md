@@ -37,10 +37,10 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 | Field | Value |
 |---|---|
 | **Branch** | `feature/project-foundation` |
-| **Status** | Uncommitted P0-D1-08 changes: new `app/static/css/tokens.css`, `app/static/css/base.css`, `app/static/js/theme.js`, `app/templates/base.html`, `app/static/fonts/` (two WOFF2 fonts + two OFL texts), `app/static/vendor/chart.umd.min.js` + MIT licence; modified `tests/test_infrastructure.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md` |
-| **Last commit** | `4599be0 feat(texts): implement typing text resolution` (P0-D1-07, committed externally) |
+| **Status** | Uncommitted P0-D1-09 changes: new `app/static/js/capture.js`, `app/static/js/typing-engine.js`, `app/static/js/test-page.js`, `app/templates/test.html`, `app/static/css/test.css`, `app/routes/__init__.py`, `app/routes/pages.py`, `app/routes/api.py`, `tests/test_api.py`; modified `app/__init__.py`, `tests/test_infrastructure.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md` |
+| **Last commit** | `3cc8a56 feat(ui): add frontend foundation and theme system` (P0-D1-08, committed externally) |
 | **Tags** | None yet |
-| **Commit/push** | **None performed by this agent in P0-D1-08.** P0-D1-01 was committed in `9c02975`; P0-D1-02 in `147ec1e`; P0-D1-03 in `e9e2215`; P0-D1-04 in `61d8c36`; P0-D1-05 in `55130e1`; P0-D1-06 in `1c0137a`; P0-D1-07 in `4599be0`. The branch is 6 commits ahead of `origin/feature/project-foundation`; nothing was pushed. |
+| **Commit/push** | **None performed by this agent in P0-D1-09.** P0-D1-01 was committed in `9c02975`; P0-D1-02 in `147ec1e`; P0-D1-03 in `e9e2215`; P0-D1-04 in `61d8c36`; P0-D1-05 in `55130e1`; P0-D1-06 in `1c0137a`; P0-D1-07 in `4599be0`; P0-D1-08 in `3cc8a56`. The branch is 7 commits ahead of `origin/feature/project-foundation`; nothing was pushed. |
 
 `.venv/`, `__pycache__/`, and `instance/` are ignored and are not part of the working-tree changes.
 
@@ -172,6 +172,31 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 - Verified in Chromium against a temporary (uncommitted) local server: OS dark fallback, toggle to light, persistence across reload, `.no-transition` removal, Lexend and JetBrains Mono loaded, tabular figures, and no console errors.
 - `pytest tests/ -v`: **392 passed** (390 previous + 2 frontend checks).
 
+### Completed This Session — P0-D1-09 Typing screen and pulled-forward routes
+
+| File | Purpose |
+|---|---|
+| `app/static/js/capture.js` | Keyboard capture per `docs/EVENT_SCHEMA.md`: printable/Backspace rules, pending map, repeat handling, AltGr, timestamp fallback logging, keyup pairing, focus/window/visibility cancellation and listener cleanup |
+| `app/static/js/typing-engine.js` | Idle → running → finished attempt state, character-state rendering, caret and scroll-follows-caret, provisional time/WPM/accuracy, completion, timer expiry, full-buffer message |
+| `app/static/js/test-page.js` | Config strip, aborted/token-guarded text fetch, passage selector, Esc restart, focus handling and capture/engine wiring |
+| `app/templates/test.html` | Test screen: config strip, provisional live row, three-line viewport, caret, status region, Esc footer hint |
+| `app/static/css/test.css` | Test layout and character presentation using design tokens only; `[hidden]` enforcement and caret states |
+| `app/routes/__init__.py`, `pages.py` | Route package and `GET /` rendering `test.html` with the word-count map |
+| `app/routes/api.py` | Three P0 text GET endpoints with ADR-029 response shapes and error handling |
+| `app/__init__.py` | Registers `pages_bp` and `api_bp` after the startup text check |
+| `tests/test_api.py` | 18 cases: home page, passage list/order/labels, single passage, unknown passage, word generation, count bounds and invalid counts |
+| `tests/test_infrastructure.py` | `GET /` now expects 200; static asset checks include `test.css`, `capture.js`, `typing-engine.js`, `test-page.js` |
+| `docs/DECISIONS.md` | ADR-029 (text API shapes and passage label, resolves AMB-003); ADR-030 (pulled-forward page/text routes) |
+
+- Capture uses `event.key === "Backspace"` for Backspace and `event.code` for down/up pairing. Repeat Backspace downs never read, write or overwrite the pending map.
+- First accepted printable keydown starts the test. Escape is owned by the page controller: while running it cancels and returns to idle with no message; Esc also restarts from idle/finished.
+- Time-mode events with `t >= duration_limit_ms` are not recorded; the engine finishes as `time_up`. Completion requires the buffer to equal the text exactly.
+- At a full buffer with mistakes, printable keys are blocked by both capture and engine, and the UI shows "Fix the highlighted characters to finish". Backspace clears the message and allows correction.
+- Focus loss while running cancels and discards the attempt, shows the documented "Test cancelled. The window lost focus." message, and reattaches capture for the next attempt.
+- The live row is hidden until the first keystroke and labelled **provisional**. WPM is a client-only net-style estimate over the current buffer; accuracy is accepted-keystroke accuracy. No final metrics or submission exist yet.
+- Scroll-follows-caret was verified: after 130 characters the caret was on layout line 3 and the track had shifted by one line, leaving it on visible line 2.
+- `pytest tests/ -v`: **410 passed** (392 previous + 18 new route cases plus the updated infrastructure checks).
+
 ### Environment
 
 | Field | Value |
@@ -185,49 +210,37 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 
 ### Verification
 
-- Activating `.venv` resolves `python` to `.venv\Scripts\python.exe` (Python 3.14.7).
-- `import flask, pytest` succeeds.
-- `create_app()` returns a Flask application (`app.name == "app"`).
-- All 15 `METRICS.md` §14 constants load into `app.config`.
-- `python run.py` starts on `http://127.0.0.1:5000` with debug mode on.
-- `GET /` returns **404** — expected because no page routes exist yet (P0-D1-10).
-- `GET /static/css/tokens.css`, `/static/css/base.css`, `/static/js/theme.js`, both WOFF2 fonts and `/static/vendor/chart.umd.min.js` all return **200** with correct MIME types.
-- `base.html` renders in a request context; the theme bootstrap appears before both stylesheets and the rendered document contains no external URLs.
-- Chromium check: dark OS preference applied on first load with empty storage; toggle switched to light and persisted `tba-theme`; reload restored the saved theme; `.no-transition` was removed after load; Lexend and JetBrains Mono both loaded; `.numeric` computed to `tabular-nums`; zero console errors.
-- `json_error()` verified for `VALIDATION_ERROR` (422 with supplied details) and `INVALID_JSON` (400 with empty details).
-- `pytest tests/ -v`: **392 passed** (7 fixture-structure checks, 1 fixture-G check, 2 conftest fixture checks, 2 frontend checks, 24 replay tests, 57 metric tests, 33 key tests, 190 validator cases, 76 text-resolution cases).
-- `tests/` now contains the conftest, seven golden JSON fixtures, fixture checks, replay tests, metric tests, key-map/classification tests, validator tests, text-resolution tests, and the frontend smoke checks in `test_infrastructure.py`.
-- No compatibility issues with Python 3.14.7. Flask's deprecated `__version__` was used only in an ad-hoc check, not in project code.
+- `python -m pytest tests\ -q`: **410 passed** (7 fixture-structure checks, 1 fixture-G check, 2 conftest fixture checks, 2 infrastructure checks, 18 API/page cases, 24 replay tests, 57 metric tests, 33 key tests, 190 validator cases, 76 text-resolution cases).
+- `GET /` returns **200** and renders `test.html`. `GET /api/texts/passages`, `/api/texts/passages/p_001` and `/api/texts/words?count=200` all return **200** with the ADR-029 shapes; unknown passages return **404 TEXT_NOT_FOUND**; invalid counts return **422 VALIDATION_ERROR** with `field: "count"`.
+- Chromium check against the running Flask server: time-mode words and passage mode loaded from the API; the passage selector held all 12 passages; the live row appeared after the first accepted keystroke; character states and caret moved correctly; Backspace erased a character; a full 242-character passage buffer with one error showed the fix message and blocked an extra printable; correcting the last character finished the test; the 15 s timer counted down and a keystroke at the boundary ended as `time_up` without being recorded; Tab was not prevented; viewport blur cancelled with the documented message; Esc restarted; caret scrolling kept the active line on visible line 2; light/dark toggle persisted; zero console messages.
+- The final keyup of the completing keystroke is not captured because capture listeners are removed on finish. This is deliberate per `docs/EVENT_SCHEMA.md` §5 and is covered by the server's tolerated `open_at_end` condition.
+- `app/routes/api.py` contains no metric math and no SQL; it delegates every text lookup/generation to `app/texts.py`.
+- `tests/` now contains the conftest, seven golden JSON fixtures, fixture checks, replay tests, metric tests, key-map/classification tests, validator tests, text-resolution tests, API/page tests and the frontend smoke checks.
+- No compatibility issues with Python 3.14.7.
 
 ---
 
 ## Exact Next Task
 
-**Task ID:** P0-D1-09
-**Title:** Frontend — capture and typing engine
+**Task ID:** P0-D1-10
+**Title:** First vertical slice — `POST /api/sessions`
 
-**Scope (from `docs/TASKS.md`):**
-1. Implement `app/static/js/capture.js` per `docs/EVENT_SCHEMA.md`:
-   - Keydown/keyup listeners on the passage viewport.
-   - Pending map, repeat handling, orphan up tracking.
-   - `t` calculation from the first accepted keydown.
-   - Timestamp fallback with diagnostic logging.
-   - Focus/blur/visibilitychange handlers.
-   - Full-buffer enforcement.
-2. Implement `app/static/js/typing-engine.js`: UI state machine (idle → running → finished/cancelled), live WPM/accuracy display (provisional), caret movement, character state rendering.
-3. Implement `app/templates/test.html` and `app/static/css/test.css`.
-4. Implement `app/static/js/test-page.js` (config strip, text fetch, test orchestration).
-5. **Acceptance:** typing test runs in the browser; events are captured correctly; Tab never intercepted; focus loss cancels test; Esc cancels test.
+**Scope (remaining from `docs/TASKS.md`; `GET /` and the three text GETs were pulled forward into P0-D1-09 under ADR-030):**
+1. Implement `POST /api/sessions` in `app/routes/api.py`:
+   - Parse JSON → `validate_session_payload()` → `texts.resolve_text()` → `engine.analyze_session()` → return `201 {session_id, metrics, warnings, links}`.
+   - No DB persistence yet; generate an in-memory/placeholder session id or defer persistence entirely.
+2. Add a minimal plain results view (can be in-memory) showing the server-computed metrics.
+3. Connect the finished attempt in `test-page.js` to submit the captured payload once.
+4. **Acceptance:** full flow works: type → submit → see numbers. `pytest` green.
 
 **Starting point:**
-- `app/templates/base.html` now provides the shell, nav, theme toggle and `head` / `content` / `footer` / `scripts` blocks. `test.html` must extend it.
-- `tokens.css` and `base.css` are loaded globally. Do not add hex literals to `test.css`; use the tokens.
-- `theme.js` is already loaded by `base.html` and dispatches `tba:themechange`. It is the only frontend JS module so far.
-- Chart.js is vendored but intentionally unused until P0-D2-06.
-- No page routes exist yet. P0-D1-10 adds `GET /`; until then, render `test.html` through an ad-hoc test route or the test client.
-- Nav links use literal paths and currently 404 by design (ADR-028).
+- `app/routes/api.py` already exists with the three text GET endpoints and is registered under `/api`. Add the session route there; do not duplicate the blueprint.
+- `app/templates/test.html` and `app/static/js/test-page.js` are live at `GET /`. The engine currently keeps only counters and the final buffer; it does **not** retain the event list. Submission needs the accepted down/up events in order. Add event accumulation in the engine or a dedicated attempt recorder, using the existing capture callbacks.
+- The final keyup of the completing keystroke is intentionally not captured (capture stops on finish); the server tolerates `open_at_end`.
+- The page already knows `currentTextRef` and `startedAt`; keep the client from sending `ended_at_ms`, `end_reason` or the text body (ADR-025, `docs/EVENT_SCHEMA.md` §6).
+- `app/validators.py` and `app/engine/__init__.py` (`analyze_session`) are complete; reuse them rather than reimplementing validation or metrics.
 - Content is frozen: do not edit `passages.json` or `words_en.json` ordering without a new ADR (ADR-027).
-- `docs/UI_DESIGN.md` §4 and `docs/EVENT_SCHEMA.md` §4–§7 are the authoritative sources for the test screen and capture rules.
+- `docs/UI_DESIGN.md` §5 and the error table in `docs/EVENT_SCHEMA.md` §8 remain authoritative for the results view and error responses.
 
 ---
 
@@ -239,15 +252,18 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 4. **Validation limits and duration sizing live in `app/config.py`.** `SUPPORTED_SCHEMA_VERSION`, `MIN/MAX_SESSION_EVENTS`, `MAX_SESSION_BODY_BYTES` (2 MiB), `ALLOWED_TIME_LIMITS_MS`, `WORD_COUNT_MIN/MAX` and `WORDS_FOR_DURATION_MS` are named constants; do not hard-code them in routes.
 5. **`docs/UI_DESIGN.md` §7** references `docs/METRICS.md` §6 for the Wilson heuristic; it should be §12. Correct during UI documentation cleanup.
 6. **`README.md`** is absent; leave for P0-D3-05.
-7. **`app/routes/__init__.py`** is not specified; decide when implementing routes.
-8. **P0-D1-07 is committed** as `4599be0` (externally). **P0-D1-08 changes are uncommitted.** HEAD is `4599be0`. The branch is 6 commits ahead of `origin/feature/project-foundation`; do not commit or push without approval.
+7. **`app/routes/__init__.py`** now exists as the route package docstring; `pages.py` and `api.py` live beside it and are registered in `create_app()`.
+8. **P0-D1-08 is committed** as `3cc8a56` (externally). **P0-D1-09 changes are uncommitted.** HEAD is `3cc8a56`. The branch is 7 commits ahead of `origin/feature/project-foundation`; do not commit or push without approval.
 9. **Fixture A's IKI values are null by decision.** The §13 row's mean/SD arithmetic conflicts with §8.5; the author ruled §8.5 wins (ADR-023). Do not "fix" this by restoring `800.0`/`0.0`.
 10. **`session_key_stats` rows are ready for persistence but not yet stored.** P0-D2-02 owns the repository insert; `SessionKeyStat` field names match the blueprint §9 columns exactly.
 11. **Heatmap classification is not yet wired to an endpoint.** `classify_observation()` and `pooled_baseline_error_rate()` are reused by P0-D3-01; do not duplicate the formula in routes or SQL.
-12. **The base nav links use literal paths and all 404 until P0-D1-10.** This is deliberate (ADR-028); `url_for` cannot be used for endpoints that do not exist. Replace with `url_for` when the page routes arrive.
+12. **The test page is live at `/`; `analytics`, `keyboard` and `history` still 404.** Those routes belong to later tasks, so the literal nav paths remain deliberate (ADR-028). Replace them with `url_for` as each page endpoint lands.
 13. **Chart.js is vendored but not referenced by any template yet.** It stays unused until the analytics/chart pages (P0-D2-06); do not add it to `base.html`.
 14. **Only the latin font subsets are vendored.** All app content is ASCII 32–126. Out-of-subset glyphs use the documented fallback stacks; add subsets only with a new ADR and the corresponding licence/version note.
 15. **The inline theme script and `theme.js` deliberately split responsibilities.** First paint belongs to the inline script; later toggles belong to `theme.js`. Do not move the storage read into the module, or a reload will flash the wrong theme.
+16. **The engine does not retain the event list yet.** P0-D1-10 must add accepted-event accumulation before it can build a session payload. Capture already produces the documented event objects; do not rederive timestamps or pending state in the route.
+17. **The completion keystroke's keyup is intentionally lost.** Capture stops listening when the attempt finishes (EVENT_SCHEMA §5), so the server may report `open_at_end`; this is tolerated by design.
+18. **Provisional live stats are client-only.** WPM and accuracy in the live row are estimates over the current buffer and accepted keystrokes. Never store them or present them as final; the server remains the sole metric authority.
 
 ---
 
