@@ -1,0 +1,29 @@
+{
+  "id": "D",
+  "description": "Passage mode does not complete on a wrong final character; completion occurs after correction.",
+  "mode": "passage",
+  "duration_limit_ms": null,
+  "text": "cat",
+  "events": [
+    {"seq": 0, "type": "down", "t": 0, "code": "KeyC", "key": "c", "repeat": false},
+    {"seq": 1, "type": "down", "t": 800, "code": "KeyA", "key": "a", "repeat": false},
+    {"seq": 2, "type": "down", "t": 1600, "code": "KeyX", "key": "x", "repeat": false},
+    {"seq": 3, "type": "down", "t": 2400, "code": "Backspace", "key": "Backspace", "repeat": false},
+    {"seq": 4, "type": "down", "t": 3200, "code": "KeyT", "key": "t", "repeat": false}
+  ],
+  "expected": {
+    "end_reason": "completed",
+    "active_duration_ms": 3200,
+    "K": 4,
+    "C": 3,
+    "E": 1,
+    "N": 3,
+    "U": 0,
+    "corrected_errors": 1,
+    "erased_unresolved_errors": 0,
+    "backspace_deletions": 1,
+    "backspace_presses": 1,
+    "gross_wpm": 15.0,
+    "net_wpm": 11.25
+  }
+}

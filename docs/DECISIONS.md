@@ -180,6 +180,15 @@ The following decisions are pre-approved and locked in `TBA_BLUEPRINT_v3_FINAL.m
 
 ---
 
+### ADR-018: P0-D1-02 provides an in-memory SQLite fixture only
+**Date:** 2026-11-06
+**Status:** Approved
+**Context:** P0-D1-02 requires an in-memory DB fixture, but the database schema and application connection factory are P0-D2-01. Creating `app/db.py` or `app/schema.sql` now would prematurely implement a later task.
+**Decision:** `tests/conftest.py` provides a `db_conn` fixture backed by `sqlite3.connect(":memory:")` with `PRAGMA foreign_keys = ON`. It creates no tables. The application connection factory, schema, and `init_db()` remain in P0-D2-01.
+**Consequences:** Repository tests can receive a connection later, but schema-dependent tests must wait for P0-D2-01. No production database code is introduced early.
+
+---
+
 ## Open Ambiguities
 
 ### AMB-001: Exact words in `words_en.json`
@@ -207,3 +216,10 @@ The following decisions are pre-approved and locked in `TBA_BLUEPRINT_v3_FINAL.m
 **Status:** Open
 **Context:** The blueprint says "5-session moving average" but does not specify whether this is a trailing window average or an expanding average for early sessions (fewer than 5).
 **Decision:** Use a **trailing window** of 5 sessions. For the first 1–4 sessions, use all available sessions (expanding window). This is the conventional interpretation. Log here if changed.
+
+### AMB-005: Golden fixture G unspecified values
+**Date:** 2026-11-06
+**Status:** Open
+**Context:** Blueprint §14.1 gives fixture G as "time, long text" and specifies typed text, deletions, presses, dwell, timed actions, and intervals, but not the exact text, duration limit, end reason, or active duration.
+**Decision needed:** The author must supply or approve the text and duration limit; the derived end reason and `T` then follow from §4.2.
+**Impact:** P0-D1-03 can test the Backspace/deletion behaviour now, but cannot assert G's end state until these values are pinned. `tests/fixtures/golden_g.json` records them under `unresolved` and intentionally omits them.

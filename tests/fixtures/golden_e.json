@@ -1,0 +1,13 @@
+{
+  "id": "E",
+  "description": "Passage mode with a wrong final character does not complete.",
+  "mode": "passage",
+  "duration_limit_ms": null,
+  "text": "cat",
+  "events": [
+    {"seq": 0, "type": "down", "t": 0, "code": "KeyC", "key": "c", "repeat": false},
+    {"seq": 1, "type": "down", "t": 800, "code": "KeyA", "key": "a", "repeat": false},
+    {"seq": 2, "type": "down", "t": 1600, "code": "KeyX", "key": "x", "repeat": false}
+  ],
+  "expected_error": "INCOMPLETE_SESSION"
+}

@@ -37,10 +37,10 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 | Field | Value |
 |---|---|
 | **Branch** | `feature/project-foundation` |
-| **Status** | Uncommitted changes: modified `.gitignore`, `docs/TASKS.md`, `docs/PROGRESS.md`; untracked `app/`, `requirements.txt`, `run.py` |
-| **Last commit** | `1bf73fa docs(audit): fix duplicate rule, SVG->button, add missing regression test coverage, clarify hygiene scope` |
+| **Status** | Uncommitted P0-D1-02 changes: modified `docs/DECISIONS.md`, `docs/HANDOFF.md`, `docs/PROGRESS.md`, `docs/TASKS.md`; untracked `tests/` |
+| **Last commit** | `c0d100c chore: remove accidental diff file` (previous: `9c02975 chore: add project foundation scaffold`) |
 | **Tags** | None yet |
-| **Commit/push** | **None performed** — changes await explicit approval |
+| **Commit/push** | **None performed by this agent in P0-D1-02.** P0-D1-01 was committed in `9c02975`; `c0d100c` removed an accidental `tatus` file. P0-D1-02 remains uncommitted. |
 
 `.venv/`, `__pycache__/`, and `instance/` are ignored and are not part of the working-tree changes.
 
@@ -54,6 +54,19 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 | `app/config.py` | All 15 named metric thresholds from `docs/METRICS.md` §14; no metric calculations |
 | `app/errors.py` | Nine documented API error codes plus `json_error()` in the documented response shape |
 | `.gitignore` | Added `instance/`; existing `.venv/`, `venv/`, `__pycache__/`, `*.py[cod]`, and `.pytest_cache/` rules preserved |
+
+### Completed This Session — P0-D1-02 Test Infrastructure
+
+| File | Purpose |
+|---|---|
+| `tests/conftest.py` | `app`, `client`, and `db_conn` fixtures; `db_conn` is an in-memory `sqlite3` connection with `PRAGMA foreign_keys = ON` and no tables |
+| `tests/test_fixtures.py` | Structural checks for the golden JSON fixtures only; no replay or metric logic |
+| `tests/test_infrastructure.py` | Verifies the `app`, `client`, and `db_conn` fixtures |
+| `tests/fixtures/golden_a.json` … `golden_g.json` | Golden examples A–G from `docs/METRICS.md` §13 |
+
+- The DB-fixture ordering issue is resolved by ADR-018: no `app/db.py`, schema, or `init_db()` was added early.
+- Fixture G intentionally leaves `text`, `duration_limit_ms`, `end_reason`, and `active_duration_ms` unresolved (AMB-005).
+- `pytest tests/ -v`: **10 passed** (7 fixture-structure checks, 1 fixture-G unresolved check, 2 conftest fixture checks).
 
 ### Environment
 
@@ -75,31 +88,33 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 - `python run.py` starts on `http://127.0.0.1:5000` with debug mode on.
 - `GET /` returns **404** — expected because no routes exist yet.
 - `json_error()` verified for `VALIDATION_ERROR` (422 with supplied details) and `INVALID_JSON` (400 with empty details).
-- `tests/` does not exist. **No automated tests exist**, pytest was not run as a pass criterion, and no placeholder tests were created. Test infrastructure belongs to P0-D1-02.
+- `pytest tests/ -v`: **10 passed** (7 fixture-structure checks, 1 fixture-G unresolved check, 2 conftest fixture checks).
+- `tests/` now contains the conftest, seven golden JSON fixtures, fixture-integrity tests, and conftest fixture checks. No replay or metric tests exist yet.
 - No compatibility issues with Python 3.14.7. Flask's deprecated `__version__` was used only in an ad-hoc check, not in project code.
 
 ---
 
 ## Exact Next Task
 
-**Task ID:** P0-D1-02
-**Title:** Tests infrastructure and conftest
+**Task ID:** P0-D1-03
+**Title:** Engine — replay
 
 **Scope (from `docs/TASKS.md`):**
-1. Create `tests/conftest.py` with a Flask test-client fixture and an in-memory DB fixture.
-2. Create `tests/fixtures/`.
-3. Create golden fixture files for examples A–G from `docs/METRICS.md` §13.
-4. **Acceptance:** `pytest tests/` runs with 0 errors (no tests collected is acceptable at this stage).
+1. Implement `app/engine/replay.py`: buffer state machine, `pending` map, and all event-handling rules per `docs/EVENT_SCHEMA.md` §4.
+2. Handle accepted printable, repeat printable (discard), Backspace (non-repeat and repeat), `up` pairing, orphan up, missing up, the full-buffer rule, the timer boundary, and dropped-after-end.
+3. Implement `app/engine/__init__.py` with an `analyze_session()` stub.
+4. Write `tests/test_replay.py` against fixtures A–G for K, C, E, N, U, Ec, Eu, deletions, presses, `dropped_after_end`, `end_reason`, and `T`.
+5. Assert invariants on every fixture: `E = U + Ec + Eu`, `K = C + E`, `N ≤ K`.
 
-**Before starting, resolve:**
-- The in-memory DB fixture is requested here, but the DB schema/connection task is P0-D2-01. Decide whether to stub/defer the DB fixture or bring forward only the minimum connection setup, and record the decision in `docs/DECISIONS.md`.
-- Golden fixture G is underspecified (no `duration_limit_ms`, expected `end_reason`, or `T`). Pin these values before writing replay tests in P0-D1-03.
+**Before starting:**
+- Pin fixture G's text, duration limit, end reason, and `T` (AMB-005). Until then, replay tests can cover G's deletion, dwell, and interval behaviour but not its end state.
+- Fixture F's event at t=2000 is a representative keyup after completion; keep the drop-after-end semantics.
 
 ---
 
 ## Outstanding Issues for the Next Agent
 
-1. **Golden fixture G** lacks `duration_limit_ms` and expected `end_reason`/`T`; resolve before replay tests (P0-D1-03).
+1. **Golden fixture G** lacks its exact text, `duration_limit_ms`, expected `end_reason`, and `T` (AMB-005); resolve before replay tests (P0-D1-03).
 2. **Word list and passage texts** are missing (`AMB-001`, `AMB-002`); handle in P0-D1-07.
 3. **Timer-boundary tests** are listed under P0-D1-06, but timing behaviour belongs to the replay engine; resolve before validators.
 4. **`ended_at_ms`/`end_reason` handling** ("reject" vs "ignore") is ambiguous; decide and document before validator implementation.
@@ -107,7 +122,7 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 6. **`docs/UI_DESIGN.md` §7** references `docs/METRICS.md` §6 for the Wilson heuristic; it should be §12. Correct during UI documentation cleanup.
 7. **`README.md`** is absent; leave for P0-D3-05.
 8. **`app/routes/__init__.py`** is not specified; decide when implementing routes.
-9. **P0-D1-01 changes are uncommitted.** The commit is recorded as deferred in `docs/TASKS.md`; HEAD remains `1bf73fa`. Do not commit or push without approval.
+9. **P0-D1-02 changes are uncommitted.** HEAD is `c0d100c`; P0-D1-01 was committed in `9c02975`. Do not commit or push without approval.
 
 ---
 

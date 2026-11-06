@@ -21,13 +21,17 @@
 - [x] Verify `python run.py` starts the development server on `http://127.0.0.1:5000` without error
 - [x] **Acceptance:** dependencies install successfully; Flask imports; `create_app()` succeeds; `python run.py` starts the local development server. Automated test infrastructure and tests belong to P0-D1-02; this task does not require `pytest tests/` to pass.
 - [x] **Files touched:** `run.py`, `requirements.txt`, `app/__init__.py`, `app/config.py`, `app/errors.py`, `.gitignore`
-- **Commit (deferred):** `chore(scaffold): initial project structure` — not performed; commits require explicit approval.
+- **Commit:** `9c02975 chore: add project foundation scaffold` — committed before P0-D1-02 began.
 
 ### P0-D1-02: Tests infrastructure and conftest
-- [ ] Create `tests/conftest.py` with Flask test client fixture and in-memory DB fixture
-- [ ] Create `tests/fixtures/` directory
-- [ ] Create golden fixture files for examples A–G (from `docs/METRICS.md` §13)
-- [ ] **Acceptance:** `pytest tests/` runs with 0 errors (no tests collected is fine at this stage)
+- [x] Create `tests/conftest.py` with Flask test client fixture and in-memory DB fixture
+- [x] Create `tests/fixtures/` directory
+- [x] Create golden fixture files for examples A–G (from `docs/METRICS.md` §13)
+- [x] Add fixture-integrity checks in `tests/test_fixtures.py` (structure only; no replay or metric logic)
+- [x] Add conftest fixture checks in `tests/test_infrastructure.py`
+- [x] **Acceptance:** `pytest tests/` runs with 0 errors; **10 tests pass** (7 fixture-structure checks, 1 fixture-G unresolved check, 2 conftest fixture checks).
+- [x] **Files touched:** `tests/conftest.py`, `tests/test_fixtures.py`, `tests/test_infrastructure.py`, `tests/fixtures/golden_a.json` … `golden_g.json`, `docs/DECISIONS.md`
+- **Commit (deferred):** `test(infra): add pytest fixtures and golden examples A–G` — not performed; commits require explicit approval.
 
 ### P0-D1-03: Engine — replay
 - [ ] Implement `app/engine/replay.py`: buffer state machine, `pending` map, all event-handling rules per `docs/EVENT_SCHEMA.md` §4

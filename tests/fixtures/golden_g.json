@@ -1,0 +1,25 @@
+{
+  "id": "G",
+  "description": "One physical Backspace hold gives three deletions and one dwell sample.",
+  "mode": "time",
+  "text": null,
+  "unresolved": ["text", "duration_limit_ms", "end_reason", "active_duration_ms"],
+  "notes": "The blueprint specifies only 'long text' and does not pin the exact text, duration limit, end reason, or active duration. Those values are intentionally left unresolved.",
+  "events": [
+    {"seq": 0, "type": "down", "t": 0, "code": "KeyC", "key": "c", "repeat": false},
+    {"seq": 1, "type": "down", "t": 100, "code": "KeyA", "key": "a", "repeat": false},
+    {"seq": 2, "type": "down", "t": 200, "code": "KeyT", "key": "t", "repeat": false},
+    {"seq": 3, "type": "down", "t": 1000, "code": "Backspace", "key": "Backspace", "repeat": false},
+    {"seq": 4, "type": "down", "t": 1500, "code": "Backspace", "key": "Backspace", "repeat": true},
+    {"seq": 5, "type": "down", "t": 1530, "code": "Backspace", "key": "Backspace", "repeat": true},
+    {"seq": 6, "type": "up", "t": 1600, "code": "Backspace", "key": null, "repeat": false}
+  ],
+  "expected": {
+    "typed_text": "",
+    "backspace_deletions": 3,
+    "backspace_presses": 1,
+    "backspace_dwell_ms": 600.0,
+    "timed_actions": ["c", "a", "t", "Backspace"],
+    "intervals_ms": [100, 100, 800]
+  }
+}

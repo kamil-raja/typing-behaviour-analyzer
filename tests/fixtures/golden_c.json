@@ -1,0 +1,27 @@
+{
+  "id": "C",
+  "description": "Time mode expires after deleting an error, leaving an erased-unresolved error.",
+  "mode": "time",
+  "duration_limit_ms": 6000,
+  "text": "cat",
+  "events": [
+    {"seq": 0, "type": "down", "t": 0, "code": "KeyC", "key": "c", "repeat": false},
+    {"seq": 1, "type": "down", "t": 800, "code": "KeyX", "key": "x", "repeat": false},
+    {"seq": 2, "type": "down", "t": 1600, "code": "Backspace", "key": "Backspace", "repeat": false}
+  ],
+  "expected": {
+    "end_reason": "time_up",
+    "active_duration_ms": 6000,
+    "K": 2,
+    "C": 1,
+    "E": 1,
+    "N": 1,
+    "U": 0,
+    "corrected_errors": 0,
+    "erased_unresolved_errors": 1,
+    "backspace_deletions": 1,
+    "backspace_presses": 1,
+    "gross_wpm": 4.0,
+    "net_wpm": 2.0
+  }
+}

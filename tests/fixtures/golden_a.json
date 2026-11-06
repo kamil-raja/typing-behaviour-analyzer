@@ -1,0 +1,36 @@
+{
+  "id": "A",
+  "description": "Passage completion after correcting an error.",
+  "mode": "passage",
+  "duration_limit_ms": null,
+  "text": "cat",
+  "events": [
+    {"seq": 0, "type": "down", "t": 0, "code": "KeyC", "key": "c", "repeat": false},
+    {"seq": 1, "type": "down", "t": 800, "code": "KeyX", "key": "x", "repeat": false},
+    {"seq": 2, "type": "down", "t": 1600, "code": "Backspace", "key": "Backspace", "repeat": false},
+    {"seq": 3, "type": "down", "t": 2400, "code": "KeyA", "key": "a", "repeat": false},
+    {"seq": 4, "type": "down", "t": 6000, "code": "KeyT", "key": "t", "repeat": false}
+  ],
+  "expected": {
+    "end_reason": "completed",
+    "active_duration_ms": 6000,
+    "K": 4,
+    "C": 3,
+    "E": 1,
+    "N": 3,
+    "U": 0,
+    "corrected_errors": 1,
+    "erased_unresolved_errors": 0,
+    "backspace_deletions": 1,
+    "backspace_presses": 1,
+    "gross_wpm": 8.0,
+    "net_wpm": 6.0,
+    "accuracy_pct": 75.0,
+    "intervals_ms": [800, 800, 800, 3600],
+    "valid_intervals_ms": [800, 800, 800],
+    "avg_iki_ms": 800.0,
+    "iki_sd_ms": 0.0,
+    "pause_count": 1,
+    "total_pause_ms": 3600
+  }
+}

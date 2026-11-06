@@ -1,0 +1,28 @@
+{
+  "id": "B",
+  "description": "Time mode expires with an uncorrected error.",
+  "mode": "time",
+  "duration_limit_ms": 6000,
+  "text": "cat",
+  "events": [
+    {"seq": 0, "type": "down", "t": 0, "code": "KeyC", "key": "c", "repeat": false},
+    {"seq": 1, "type": "down", "t": 800, "code": "KeyX", "key": "x", "repeat": false},
+    {"seq": 2, "type": "down", "t": 1600, "code": "KeyT", "key": "t", "repeat": false}
+  ],
+  "expected": {
+    "end_reason": "time_up",
+    "active_duration_ms": 6000,
+    "K": 3,
+    "C": 2,
+    "E": 1,
+    "N": 3,
+    "U": 1,
+    "corrected_errors": 0,
+    "erased_unresolved_errors": 0,
+    "backspace_deletions": 0,
+    "backspace_presses": 0,
+    "gross_wpm": 6.0,
+    "net_wpm": 4.0,
+    "accuracy_pct": 66.7
+  }
+}

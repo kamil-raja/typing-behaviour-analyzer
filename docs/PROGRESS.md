@@ -7,9 +7,9 @@
 
 ## Current Status
 
-**Phase: Implementation in progress — P0-D1-01 scaffold complete.**
+**Phase: Implementation in progress — P0-D1-01 and P0-D1-02 complete.**
 
-Documentation is complete and the minimum Flask application foundation now exists. No automated tests exist yet; test infrastructure is the next task (P0-D1-02).
+Documentation, the minimum Flask application foundation, and the pytest infrastructure now exist. The seven golden examples are present as JSON fixtures, and fixture-integrity tests pass. Engine replay is the next task (P0-D1-03).
 
 ---
 
@@ -38,6 +38,15 @@ Documentation is complete and the minimum Flask application foundation now exist
 - [x] Corrected P0-D1-01 acceptance criteria in `docs/TASKS.md`: test infrastructure belongs to P0-D1-02
 - [x] Corrected `.gitignore` to ignore `instance/`
 
+### Test infrastructure (2026-11-06)
+- [x] P0-D1-02: Created `tests/conftest.py` with `app`, `client`, and `db_conn` fixtures
+- [x] Added `db_conn` as an in-memory `sqlite3` connection with `PRAGMA foreign_keys = ON`; no schema or `app/db.py` (ADR-018)
+- [x] Created golden fixtures `tests/fixtures/golden_a.json` through `golden_g.json`
+- [x] Added `tests/test_fixtures.py` for structural integrity only; no replay or metric logic
+- [x] Added `tests/test_infrastructure.py` to verify the `app`, `client`, and `db_conn` fixtures
+- [x] Fixture G records `text`, `duration_limit_ms`, `end_reason`, and `active_duration_ms` as unresolved (AMB-005); no values were invented
+- [x] `pytest tests/ -v`: **10 passed**
+
 ### Application code
 - [x] P0-D1-01 scaffold only; no engine, validators, routes, database, or frontend yet
 
@@ -48,7 +57,7 @@ Documentation is complete and the minimum Flask application foundation now exist
 | Task | Status |
 |---|---|
 | P0-D1-01: Repository scaffold | ✅ Complete (2026-11-06) |
-| P0-D1-02: Tests infrastructure | ⬜ Not started |
+| P0-D1-02: Tests infrastructure | ✅ Complete (2026-11-06) |
 | P0-D1-03: Engine — replay | ⬜ Not started |
 | P0-D1-04: Engine — metrics | ⬜ Not started |
 | P0-D1-05: Engine — key stats / heatmap | ⬜ Not started |
@@ -76,7 +85,7 @@ Documentation is complete and the minimum Flask application foundation now exist
 
 **Day 1 vertical slice:** by end of Day 1, a user should be able to type, submit, and see metrics — even without DB persistence. The engine must pass all golden fixtures (A–G).
 
-Exact next task: **P0-D1-02** — test infrastructure and `tests/conftest.py`.
+Exact next task: **P0-D1-03** — engine replay (`app/engine/replay.py`) and `tests/test_replay.py`.
 
 ---
 
@@ -87,14 +96,14 @@ See `docs/DECISIONS.md` for open ambiguities:
 - **AMB-002:** Passage texts not yet provided (needs author to write/approve them)
 - **AMB-003:** Passage selector label format (minor, can be decided during implementation)
 - **AMB-004:** Moving average window behaviour at < 5 sessions (assumed trailing window with expanding for early sessions)
+- **AMB-005:** Golden fixture G's exact text, duration limit, end reason, and active duration are not specified (see `docs/DECISIONS.md`)
 
 ### Known issues carried forward
-- Golden fixture G lacks `duration_limit_ms` and expected `end_reason`/`T`; resolve before replay tests (P0-D1-03).
+- Golden fixture G lacks `duration_limit_ms`, exact text, expected `end_reason`, and `T`; resolve before replay tests (P0-D1-03, AMB-005).
 - Word list and passage texts are missing; handle in P0-D1-07.
 - Timer-boundary tests are listed under P0-D1-06 but timing belongs to the replay engine; resolve before validators.
 - Client-supplied `ended_at_ms`/`end_reason` handling ("reject" vs "ignore") remains ambiguous; decide before validator implementation.
 - Application limits outside `docs/METRICS.md` §14 (request size, event counts, allowed durations, word counts) are not formally enumerated; add when the relevant validation/API tasks specify them.
 - `docs/UI_DESIGN.md` §7 references `docs/METRICS.md` §6 for the Wilson heuristic; correct during UI documentation cleanup.
-- P0-D1-02 requests an in-memory DB fixture before the database task; resolve when implementing the test infrastructure.
 - `README.md` is not yet present; leave for P0-D3-05.
 - `app/routes/__init__.py` is not specified; decide when implementing routes.
