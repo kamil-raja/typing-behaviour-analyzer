@@ -1,11 +1,8 @@
 """Application configuration constants.
 
-This module holds the named thresholds defined in ``docs/METRICS.md`` §14.
-It contains no metric calculations; the engine consumes these values.
-
-Other application limits (request size, event counts, allowed durations) are
-not formally enumerated in that section and are intentionally not invented
-here. They will be added when the relevant validation/API tasks specify them.
+This module holds the named thresholds defined in ``docs/METRICS.md`` §14 and
+the request limits specified in ``docs/EVENT_SCHEMA.md`` §6–§7. It contains no
+metric calculations and no validation logic.
 """
 
 # Timing thresholds (milliseconds).
@@ -32,3 +29,12 @@ IKI_HIST_BIN_WIDTH_MS = 25
 
 # Dwell heatmap mode [P1].
 DWELL_LONG_RATIO = 1.25
+
+# Session payload validation (docs/EVENT_SCHEMA.md §6–§7).
+SUPPORTED_SCHEMA_VERSION = 1
+MIN_SESSION_EVENTS = 2
+MAX_SESSION_EVENTS = 10_000
+MAX_SESSION_BODY_BYTES = 2 * 1024 * 1024
+ALLOWED_TIME_LIMITS_MS = frozenset({15_000, 30_000, 60_000})
+WORD_COUNT_MIN = 10
+WORD_COUNT_MAX = 400

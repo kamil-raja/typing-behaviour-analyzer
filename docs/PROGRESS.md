@@ -7,9 +7,9 @@
 
 ## Current Status
 
-**Phase: Implementation in progress — P0-D1-01 through P0-D1-05 complete.**
+**Phase: Implementation in progress — P0-D1-01 through P0-D1-06 complete.**
 
-Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map and the Wilson heatmap heuristic now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. Validators are the next task (P0-D1-06).
+Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic and the session-payload validator now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. Text resolution is the next task (P0-D1-07).
 
 ---
 
@@ -78,8 +78,20 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 - [x] Recorded ADR-024 for the merge shape, classification gate and floating-point margin tolerance
 - [x] `pytest tests/ -v`: **124 passed** (91 previous + 33 key tests)
 
+### Session payload validation (2026-11-06)
+- [x] P0-D1-06: Created `app/validators.py` with `validate_session_payload()` and typed `ValidatedSessionPayload`
+- [x] Implemented `ValidationError` (422 `VALIDATION_ERROR`) and `PayloadTooLargeError` (413 `PAYLOAD_TOO_LARGE`) with aggregated `{field, problem}` details
+- [x] Enforced required top-level fields, field types, modes, duration limits, text-ref shapes and word-count bounds, client fields, and all five ignored counters
+- [x] Enforced the 2 MiB body limit and the 2–10 000 event-count bounds
+- [x] Enforced per-event seq/index contiguity, finite non-negative non-decreasing `t`, `down`/`up` enums, code regex, printable-ASCII/Backspace key rules, null keyup keys, boolean `repeat`, and no repeat-printable keydowns
+- [x] Rejected client-supplied `ended_at_ms` and `end_reason` (ADR-025) and documented the validator contract and timer-boundary ownership (ADR-026)
+- [x] Kept timer-boundary handling in replay: events at `t >= duration_limit_ms` validate structurally, are excluded by replay, and end the session with `time_up`
+- [x] Added the validation limits to `app/config.py` (`SUPPORTED_SCHEMA_VERSION`, `MIN/MAX_SESSION_EVENTS`, `MAX_SESSION_BODY_BYTES`, `ALLOWED_TIME_LIMITS_MS`, `WORD_COUNT_MIN/MAX`)
+- [x] Created `tests/test_validators.py`: 57 test functions (190 cases) covering Unicode keys/codes, space/tilde acceptance, enums, seq gaps, oversized lists/event lists, forbidden end fields and both halves of the timer-boundary contract
+- [x] `pytest tests/ -v`: **314 passed** (124 previous + 190 new validator cases)
+
 ### Application code
-- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, and P0-D1-05 key statistics; no validators, routes, database, or frontend yet
+- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, and P0-D1-06 validators; no routes, database, or frontend yet
 
 ---
 
@@ -92,7 +104,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 | P0-D1-03: Engine — replay | ✅ Complete (2026-11-06) |
 | P0-D1-04: Engine — metrics | ✅ Complete (2026-11-06) |
 | P0-D1-05: Engine — key stats / heatmap | ✅ Complete (2026-11-06) |
-| P0-D1-06: Validators | ⬜ Not started |
+| P0-D1-06: Validators | ✅ Complete (2026-11-06) |
 | P0-D1-07: Text resolution | ⬜ Not started |
 | P0-D1-08: Frontend — themes / CSS | ⬜ Not started |
 | P0-D1-09: Frontend — capture / typing engine | ⬜ Not started |
@@ -116,7 +128,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 
 **Day 1 vertical slice:** by end of Day 1, a user should be able to type, submit, and see metrics — even without DB persistence. The engine must pass all golden fixtures (A–G).
 
-Exact next task: **P0-D1-06** — validators (`app/validators.py`, `tests/test_validators.py`).
+Exact next task: **P0-D1-07** — text resolution (`app/texts.py`, `app/data/passages.json`, `app/data/words_en.json`, startup ASCII assertion).
 
 ---
 
@@ -132,9 +144,9 @@ See `docs/DECISIONS.md` for open ambiguities:
 - Per-key attribution is resolved: `metrics.py` still returns the two raw maps (ADR-022), and `keys.merge_session_key_stats()` now produces the `key_code`-keyed rows (ADR-024). `SessionAnalysis` exposes both forms.
 - The fixture-A IKI contradiction is closed under ADR-023; `golden_a.json` now expects null IKI statistics because `|V| = 3 < 5`.
 - Word list and passage texts are missing; handle in P0-D1-07.
-- Timer-boundary behaviour is now covered by replay tests; P0-D1-06 still lists a boundary test, so keep validator coverage focused on schema and sequence checks.
-- Client-supplied `ended_at_ms`/`end_reason` handling ("reject" vs "ignore") remains ambiguous; decide before validator implementation.
-- Application limits outside `docs/METRICS.md` §14 (request size, event counts, allowed durations, word counts) are not formally enumerated; add when the relevant validation/API tasks specify them.
+- The timer boundary is resolved under ADR-026: the validator accepts events at `t >= duration_limit_ms`; replay excludes them and ends with `time_up`. Tests cover both halves.
+- Client-supplied `ended_at_ms`/`end_reason` are rejected under ADR-025; a conforming client never sends them.
+- Application limits outside `docs/METRICS.md` §14 are now centralised in `app/config.py` (schema version, event counts, 2 MiB body, allowed durations, word-count range).
 - `docs/UI_DESIGN.md` §7 references `docs/METRICS.md` §6 for the Wilson heuristic; correct during UI documentation cleanup.
 - `README.md` is not yet present; leave for P0-D3-05.
 - `app/routes/__init__.py` is not specified; decide when implementing routes.

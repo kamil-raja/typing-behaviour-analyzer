@@ -71,19 +71,19 @@
 - **Commit (deferred):** `feat(engine): keys — CHAR_TO_CODE and Wilson heuristic` — not performed; commits require explicit approval (ADR-024 explains the merge/classification shape).
 
 ### P0-D1-06: Validators
-- [ ] Implement `app/validators.py`: full payload schema validation per `docs/EVENT_SCHEMA.md` §6–§7
+- [x] Implement `app/validators.py`: full payload schema validation per `docs/EVENT_SCHEMA.md` §6–§7
   - Use `re.fullmatch()` only (never `re.match`, `isalnum`, `isprintable`, `\w`, `isascii`)
   - Check: required fields, field types, event count (2–10 000), body ≤ 2 MB, non-decreasing `t`, first event is non-repeat printable `down`, no repeat-printable, no `up` with non-null `key`, code regex, key regex
-- [ ] Write `tests/test_validators.py`:
+- [x] Write `tests/test_validators.py`:
   - Reject: `key="é"`, `key="ß"`, `key="\u00a0"`, `key="😀"`, `key="\n"`, `key="\x7f"`, `key="Dead"`, `code="KeyÉ"`, `code="KeyA\n"`, `code="٣"` (Unicode digit)
   - Accept: `key=" "` (space, ASCII 32), `key="~"` (ASCII 126)
   - Reject: non-monotonic `t`, gap in `seq`, bad enums, oversized list, wrong `schema_version`
   - Reject: `up` with non-null `key`
   - Reject: payload that includes `ended_at_ms` or `end_reason` fields (blueprint §4.3, regression group 2 — these must not be accepted as inputs; they are server-derived only)
-  - Reject: events at `t == duration_limit_ms` are not accepted in time mode; events at `t > limit` are dropped (regression group 2)
-- [ ] **Acceptance:** all validator tests pass
-- [ ] **Files touched:** `app/validators.py`, `tests/test_validators.py`
-- [ ] **Commit:** `feat(validators): full schema and ASCII validation`
+  - Timer boundary: events at `t >= duration_limit_ms` remain structurally valid and are excluded by replay, which sets `time_up` (ADR-026). Validator tests assert both halves of this contract (regression group 2).
+- [x] **Acceptance:** all validator tests pass; **314 tests pass** in the full suite
+- [x] **Files touched:** `app/validators.py`, `tests/test_validators.py`, `app/config.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- [x] **Commit (deferred):** `feat(validators): full schema and ASCII validation` — not performed; commits require explicit approval
 
 ### P0-D1-07: Text resolution
 - [ ] Create `app/data/passages.json` (~12 passages, original or public-domain, ASCII 32–126 only)

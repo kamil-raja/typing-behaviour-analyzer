@@ -259,6 +259,30 @@ P0-D1-05 will map expected characters through `CHAR_TO_CODE` and merge the two m
 - `SessionAnalysis` gains `session_key_stats` (the merged rows). The existing `key_stats` field remains the raw two-map intermediate for auditability.
 **Consequences:** The repository can insert one row per `session_key_stats` item. Classification can be reused unchanged by the P0-D3-01 aggregation endpoint. The raw attribution maps remain available, so no information is lost in the merge.
 
+### ADR-025: Client-supplied `ended_at_ms` and `end_reason` are rejected
+**Date:** 2026-11-06
+**Status:** Approved
+**Context:** Blueprint §4.3 and §6.2 state that the client sends no `ended_at_ms` and no `end_reason`; they are server-derived. Blueprint §14.2 regression group 2 says such fields are "not accepted or are ignored", leaving two possible validator behaviours.
+**Decision:** The validator rejects a payload that contains either field, even when the value is `null`. Each occurrence produces a `VALIDATION_ERROR` detail whose field is the offending key and whose problem states that the field is server-derived and must not be supplied.
+**Consequences:** The API is strict and cannot be made to trust client-supplied end state. A conforming client never sends these fields. This choice follows the explicit regression instruction in `docs/TASKS.md` P0-D1-06.
+
+---
+
+### ADR-026: Validator contract, timer-boundary handling and request limits
+**Date:** 2026-11-06
+**Status:** Approved
+**Context:** No validator API was specified. `docs/TASKS.md` P0-D1-06 lists events at `t == duration_limit_ms` under "Reject", but blueprint §6.3 and `docs/EVENT_SCHEMA.md` §7 place that rule in replay: events with `t >= duration_limit_ms` are excluded and the session ends with `time_up`. Rejecting the whole payload during schema validation would turn an ordinary timer expiry into a 422 error. The "2 MB" body limit and the handling of unknown fields, `started_at` format and unknown `text_ref` values were also unspecified.
+**Decision:**
+- The public entry point is `validate_session_payload(payload, *, body_size_bytes=None) -> ValidatedSessionPayload`. It is pure Python and independent of Flask routes. It raises `ValidationError` (`VALIDATION_ERROR`, 422) with aggregated `{field, problem}` details, or `PayloadTooLargeError` (`PAYLOAD_TOO_LARGE`, 413).
+- The 2 MB body limit is interpreted as 2 MiB (`2 * 1024 * 1024` bytes) and is checked before field validation when a body size is supplied.
+- Events at `t >= duration_limit_ms` are structurally valid. The validator only enforces finite, non-negative, non-decreasing `t`. Replay owns the timer boundary: it excludes those events and sets `time_up`, which is the documented "not accepted" meaning.
+- `text_ref` is checked structurally (type enum, required fields, word-count bounds). Existence is resolved later and produces `TEXT_NOT_FOUND`, not `VALIDATION_ERROR`.
+- Top-level unknown fields are allowed for forward compatibility. The two forbidden server-derived fields in ADR-025 are the exception.
+- `started_at` must be a non-empty string but its ISO format is not enforced because it is informational and no validation rule is specified. `client.user_agent` and `client.platform` must be strings; `client.layout_hint` must be one of the documented enum values. `ignored` must contain the five documented non-negative integer counters.
+- Time limits are restricted to `{15000, 30000, 60000}` ms; passage mode requires `null`. Word-mode `count` is restricted to `10..400` inclusive. Event counts are `2..10000` inclusive.
+- All validation problems are accumulated into one error response where possible; the first structural failure does not hide later field details.
+**Consequences:** A normal timer expiry remains a replay outcome, not a validation failure. Routes only need to translate `ValidationError.code`, `.message`, `.details` and `.status` through `app.errors.json_error()`. Future text resolution still owns unknown-reference errors.
+
 ---
 
 ## Open Ambiguities

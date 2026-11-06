@@ -37,10 +37,10 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 | Field | Value |
 |---|---|
 | **Branch** | `feature/project-foundation` |
-| **Status** | Uncommitted P0-D1-05 changes: new `app/engine/keys.py` and `tests/test_keys.py`; modified `app/engine/__init__.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md` |
-| **Last commit** | `61d8c36 feat(engine): implement typing metrics` (previous: `e9e2215 feat(engine): implement event replay`) |
+| **Status** | Uncommitted P0-D1-06 changes: new `app/validators.py` and `tests/test_validators.py`; modified `app/config.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md` |
+| **Last commit** | `55130e1 feat(engine): implement key statistics and heatmap classification` (P0-D1-05, committed externally) |
 | **Tags** | None yet |
-| **Commit/push** | **None performed by this agent in P0-D1-05.** P0-D1-01 was committed in `9c02975`; P0-D1-02 in `147ec1e`; P0-D1-03 was committed externally in `e9e2215`; P0-D1-04 in `61d8c36`. The branch is 3 commits ahead of `origin/feature/project-foundation`; nothing was pushed. |
+| **Commit/push** | **None performed by this agent in P0-D1-06.** P0-D1-01 was committed in `9c02975`; P0-D1-02 in `147ec1e`; P0-D1-03 in `e9e2215`; P0-D1-04 in `61d8c36`; P0-D1-05 in `55130e1`. The branch is 4 commits ahead of `origin/feature/project-foundation`; nothing was pushed. |
 
 `.venv/`, `__pycache__/`, and `instance/` are ignored and are not part of the working-tree changes.
 
@@ -115,6 +115,21 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 - Pooled baseline: `max(Σx/Σn, 0.01)`, or `None` when the scope has no observations. The weak margin uses a 1e-12 tolerance only to preserve the exact `>= 0.02` comparison in binary floating point.
 - `pytest tests/ -v`: **124 passed** (91 previous + 33 key tests).
 
+### Completed This Session — P0-D1-06 Validators
+
+| File | Purpose |
+|---|---|
+| `app/validators.py` | `validate_session_payload()`, `ValidatedSessionPayload`, `ValidationError` (422) and `PayloadTooLargeError` (413); pure Python, no Flask/DB/metric logic |
+| `tests/test_validators.py` | 57 test functions (190 cases): Unicode keys/codes, space/tilde acceptance, enums, required fields, seq gaps, `t` monotonicity, event/body limits, forbidden end fields, first-event rule, repeat rules, and both halves of the timer-boundary contract |
+| `app/config.py` | Added `SUPPORTED_SCHEMA_VERSION`, `MIN_SESSION_EVENTS`, `MAX_SESSION_EVENTS`, `MAX_SESSION_BODY_BYTES`, `ALLOWED_TIME_LIMITS_MS`, `WORD_COUNT_MIN`, `WORD_COUNT_MAX` |
+| `docs/DECISIONS.md` | ADR-025 (reject client-supplied `ended_at_ms`/`end_reason`, even null) and ADR-026 (validator API, 2 MiB body, timer boundary owned by replay, unknown-field policy, `started_at` policy) |
+
+- Key and code checks use `re.fullmatch()` with `re.compile(r"[\x20-\x7E]")` and `r"[A-Za-z0-9]{1,32}"`; no Unicode-aware helpers.
+- `_required()` takes an optional `path` so nested details report `text_ref.type`, `client.layout_hint`, `ignored.shortcuts`, and `events[0].t` instead of bare leaf names.
+- Timer expiry remains a replay outcome: the validator accepts events at `t >= duration_limit_ms`, and `replay_events()` excludes them and sets `time_up`. Rejecting them during schema validation would turn a normal timer finish into a 422.
+- Validation errors aggregate: every failing field gets its own `{field, problem}` detail where structurally possible.
+- `pytest tests/ -v`: **314 passed** (124 previous + 190 validator cases).
+
 ### Environment
 
 | Field | Value |
@@ -135,46 +150,45 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 - `python run.py` starts on `http://127.0.0.1:5000` with debug mode on.
 - `GET /` returns **404** — expected because no routes exist yet.
 - `json_error()` verified for `VALIDATION_ERROR` (422 with supplied details) and `INVALID_JSON` (400 with empty details).
-- `pytest tests/ -v`: **124 passed** (7 fixture-structure checks, 1 fixture-G check, 2 conftest fixture checks, 24 replay tests, 57 metric tests, 33 key tests).
-- `tests/` now contains the conftest, seven golden JSON fixtures, fixture checks, replay tests, metric tests, and key-map/classification tests.
+- `pytest tests/ -v`: **314 passed** (7 fixture-structure checks, 1 fixture-G check, 2 conftest fixture checks, 24 replay tests, 57 metric tests, 33 key tests, 190 validator cases).
+- `tests/` now contains the conftest, seven golden JSON fixtures, fixture checks, replay tests, metric tests, key-map/classification tests, and validator tests.
 - No compatibility issues with Python 3.14.7. Flask's deprecated `__version__` was used only in an ad-hoc check, not in project code.
 
 ---
 
 ## Exact Next Task
 
-**Task ID:** P0-D1-06
-**Title:** Validators
+**Task ID:** P0-D1-07
+**Title:** Text resolution
 
 **Scope (from `docs/TASKS.md`):**
-1. Implement `app/validators.py`: full payload schema validation per `docs/EVENT_SCHEMA.md` §6–§7.
-   - Use `re.fullmatch()` only (never `re.match`, `isalnum`, `isprintable`, `\w`, `isascii`).
-   - Check required fields, field types, event count (2–10 000), body ≤ 2 MB, non-decreasing `t`, first event is a non-repeat printable `down`, no repeat-printable, no `up` with non-null `key`, code regex, key regex.
-2. Write `tests/test_validators.py` with the reject/accept cases listed in `docs/TASKS.md` P0-D1-06.
-3. Reject payloads that include `ended_at_ms` or `end_reason` (they are server-derived only) and events at `t >= duration_limit_ms` in time mode (the latter is already enforced by replay; validator coverage should assert the payload rule in the documented order).
+1. Create `app/data/passages.json` (~12 passages, original or public-domain, ASCII 32–126 only).
+2. Create `app/data/words_en.json` (~200 common English words, lowercase ASCII).
+3. Implement `app/texts.py`: passage loader + getter, deterministic word generator (`random.Random(seed).shuffle()` over a fixed word list), word-count sizing (15 s → 120 words, 30 s → 200, 60 s → 350), and a startup ASCII assertion (fail loudly on any char outside 32–126).
+4. Add the startup assertion to `create_app()`.
 
 **Starting point:**
-- `app/validators.py` and `tests/test_validators.py` do not exist yet.
-- `app/errors.py` already defines the nine documented error codes and `json_error()`.
-- `app/engine/analyze_session()` is complete through key statistics; repeat and timer-boundary behaviour is already tested in `tests/test_replay.py`.
-- `docs/EVENT_SCHEMA.md` §3 defines the event object, §6 the payload, and §7 the server processing order.
-- ADR-004 mandates `re.fullmatch(r"[\x20-\x7E]", key)` and `re.fullmatch(r"[A-Za-z0-9]{1,32}", code)`. Do not use Unicode-aware helpers.
-- `app/config.py` holds metric thresholds only; request-size and event-count limits are specified in `EVENT_SCHEMA.md`, not as named metric constants.
+- `app/validators.py` now returns a `ValidatedSessionPayload` with a structural `text_ref`; do not resolve text there. An unknown id/seed must become `TEXT_NOT_FOUND`, not `VALIDATION_ERROR` (ADR-026).
+- `app/errors.py` already defines `TEXT_NOT_FOUND` and `json_error()`.
+- `app/engine/analyze_session(text=..., mode=..., duration_limit_ms=..., events=...)` expects the resolved text as a string.
+- `AMB-001` and `AMB-002` still need content approval; original ASCII text is acceptable per `AGENTS.md` §11.
+- No routes exist yet, so text resolution is exercised directly from `app.texts` in tests.
 
 ---
 
 ## Outstanding Issues for the Next Agent
 
 1. **Word list and passage texts** are missing (`AMB-001`, `AMB-002`); handle in P0-D1-07.
-2. **`ended_at_ms`/`end_reason` handling** ("reject" vs "ignore") is ambiguous; decide and document before validator implementation.
-3. **Non-metric application limits** (request size, event counts, allowed durations, word counts) are not formally enumerated; add only when the relevant validation/API tasks specify them.
-4. **`docs/UI_DESIGN.md` §7** references `docs/METRICS.md` §6 for the Wilson heuristic; it should be §12. Correct during UI documentation cleanup.
-5. **`README.md`** is absent; leave for P0-D3-05.
-6. **`app/routes/__init__.py`** is not specified; decide when implementing routes.
-7. **P0-D1-05 changes are uncommitted.** HEAD is `61d8c36` (P0-D1-04 committed externally). The branch is 3 commits ahead of `origin/feature/project-foundation`; do not commit or push without approval.
-8. **Fixture A's IKI values are null by decision.** The §13 row's mean/SD arithmetic conflicts with §8.5; the author ruled §8.5 wins (ADR-023). Do not "fix" this by restoring `800.0`/`0.0`.
-9. **`session_key_stats` rows are ready for persistence but not yet stored.** P0-D2-02 owns the repository insert; `SessionKeyStat` field names match the blueprint §9 columns exactly.
-10. **Heatmap classification is not yet wired to an endpoint.** `classify_observation()` and `pooled_baseline_error_rate()` are reused by P0-D3-01; do not duplicate the formula in routes or SQL.
+2. **`ended_at_ms`/`end_reason` are rejected** under ADR-025, even when `null`. Do not relax this without a new decision.
+3. **The timer boundary belongs to replay**, not validation (ADR-026). The validator accepts `t >= duration_limit_ms`; `replay_events()` excludes those events and sets `time_up`. Do not move this rule into the validator.
+4. **Validation limits live in `app/config.py`.** `SUPPORTED_SCHEMA_VERSION`, `MIN/MAX_SESSION_EVENTS`, `MAX_SESSION_BODY_BYTES` (2 MiB), `ALLOWED_TIME_LIMITS_MS`, `WORD_COUNT_MIN/MAX` are named constants; do not hard-code them in routes.
+5. **`docs/UI_DESIGN.md` §7** references `docs/METRICS.md` §6 for the Wilson heuristic; it should be §12. Correct during UI documentation cleanup.
+6. **`README.md`** is absent; leave for P0-D3-05.
+7. **`app/routes/__init__.py`** is not specified; decide when implementing routes.
+8. **P0-D1-06 changes are uncommitted.** HEAD is `55130e1` (P0-D1-05, committed externally). The branch is 4 commits ahead of `origin/feature/project-foundation`; do not commit or push without approval.
+9. **Fixture A's IKI values are null by decision.** The §13 row's mean/SD arithmetic conflicts with §8.5; the author ruled §8.5 wins (ADR-023). Do not "fix" this by restoring `800.0`/`0.0`.
+10. **`session_key_stats` rows are ready for persistence but not yet stored.** P0-D2-02 owns the repository insert; `SessionKeyStat` field names match the blueprint §9 columns exactly.
+11. **Heatmap classification is not yet wired to an endpoint.** `classify_observation()` and `pooled_baseline_error_rate()` are reused by P0-D3-01; do not duplicate the formula in routes or SQL.
 
 ---
 
