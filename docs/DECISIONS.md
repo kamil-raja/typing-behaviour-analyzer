@@ -67,8 +67,8 @@ The following decisions are pre-approved and locked in `TBA_BLUEPRINT_v3_FINAL.m
 **Date:** 2026-11-06
 **Status:** Approved
 **Context:** An earlier draft implied statistical significance. The heatmap uses Wilson confidence intervals compared against a pooled baseline, but it is not a valid hypothesis test for several reasons: the baseline includes the key itself, ~30 keys are compared with no multiple-comparison correction, keystrokes are not independent, and the threshold rules are ad hoc.
-**Decision:** The heatmap is described as "a conservative heuristic relative to the user's own typing history." The words "significant" and "statistically" must not appear in any user-facing string (enforced by `test_hygiene.py`). The API returns `"method": "wilson_vs_pooled_baseline_heuristic"`.
-**Consequences:** The heuristic is still useful for identifying relatively error-prone keys. Users are not misled about its statistical validity.
+**Decision:** The heatmap is described as "a conservative heuristic relative to the user's own typing history." The words "significant" and "statistically" must not appear in any **user-facing UI string** — rendered templates and shipped JS string literals (enforced by `test_hygiene.py`). Technical documentation (`METRICS.md`) is explicitly **excluded** from this check; `METRICS.md` must state the heuristic is not a significance test for correctness. The API returns `"method": "wilson_vs_pooled_baseline_heuristic"`. (Blueprint §14.2 regression group 5.)
+**Consequences:** The heuristic is still useful for identifying relatively error-prone keys. Users are not misled about its statistical validity. The hygiene test scans UI only — not docs.
 
 ---
 

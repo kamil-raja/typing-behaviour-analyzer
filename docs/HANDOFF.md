@@ -37,24 +37,19 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 | Field | Value |
 |---|---|
 | **Branch** | `feature/project-foundation` |
-| **Status** | Clean working tree (documentation committed) |
-| **Last commit** | Documentation: AGENTS.md and all docs/ files |
+| **Status** | Clean working tree (documentation + audit corrections committed) |
+| **Last commit** | Audit: documentation consistency corrections |
 | **Tags** | None yet |
 
-### Files Changed This Session
+### Files Changed This Session (Audit)
 
-| File | Description |
+| File | Change |
 |---|---|
-| `AGENTS.md` | Created — persistent agent instructions for all agents |
-| `docs/PROJECT_BRIEF.md` | Created — project purpose, scope, priorities |
-| `docs/ARCHITECTURE.md` | Created — full system architecture, data flows, folder structure |
-| `docs/UI_DESIGN.md` | Created — all screens, design tokens, interaction rules |
-| `docs/METRICS.md` | Created — all metric formulas, golden fixtures, named constants |
-| `docs/EVENT_SCHEMA.md` | Created — event capture rules, payload schema, server processing |
-| `docs/TASKS.md` | Created — all development tasks with acceptance criteria |
-| `docs/DECISIONS.md` | Created — ADR-001 through ADR-017 + 4 open ambiguities |
-| `docs/PROGRESS.md` | Created — current status and remaining work |
-| `docs/HANDOFF.md` | Created — this file |
+| `AGENTS.md` | Removed duplicate rule §3.6 (identical to §3.3); added §3.8 "No SQL in routes" |
+| `docs/ARCHITECTURE.md` | Fixed heatmap data-flow description: `<button>` keyboard, not SVG |
+| `docs/TASKS.md` | Added missing regression test coverage (client-supplied `ended_at_ms`/`end_reason` rejection; timer-boundary event tests) in P0-D1-06; clarified `git tag day2` as separate step |
+| `docs/DECISIONS.md` | Clarified ADR-005: hygiene test scans user-facing UI strings only; `METRICS.md` technical docs are exempt |
+| `docs/HANDOFF.md` | Updated to reflect audit session (this file) |
 
 ### Tests Run
 

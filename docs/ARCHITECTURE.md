@@ -81,7 +81,7 @@ GET /api/analytics/keys?scope=all
                 FROM session_key_stats GROUP BY key_code
   → engine/keys.py: Wilson interval + classification per key
   → route: shape JSON { method, baseline_error_rate, keys: [...] }
-  → keyboard-heatmap.js: render SVG keyboard, colour by class
+  → keyboard-heatmap.js: render <button> keyboard, colour by class
 ```
 
 ---

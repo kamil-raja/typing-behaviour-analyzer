@@ -72,6 +72,8 @@
   - Accept: `key=" "` (space, ASCII 32), `key="~"` (ASCII 126)
   - Reject: non-monotonic `t`, gap in `seq`, bad enums, oversized list, wrong `schema_version`
   - Reject: `up` with non-null `key`
+  - Reject: payload that includes `ended_at_ms` or `end_reason` fields (blueprint §4.3, regression group 2 — these must not be accepted as inputs; they are server-derived only)
+  - Reject: events at `t == duration_limit_ms` are not accepted in time mode; events at `t > limit` are dropped (regression group 2)
 - [ ] **Acceptance:** all validator tests pass
 - [ ] **Files touched:** `app/validators.py`, `tests/test_validators.py`
 - [ ] **Commit:** `feat(validators): full schema and ASCII validation`
@@ -190,7 +192,8 @@
   - Null metrics export as empty cells (not "None" or "null")
   - Fixed column order matches spec
 - [ ] **Acceptance:** export downloads correctly; BOM present; injection safe; `pytest` green
-- [ ] **Commit:** `feat(day2): persistence, results, history, progress, export — tag day2`
+- [ ] **Commit:** `feat(day2): persistence, results, history, progress, export`
+- [ ] Run `git tag day2` after committing
 
 ---
 
@@ -219,7 +222,7 @@
 
 ### P0-D3-03: Hygiene tests
 - [ ] Implement `tests/test_hygiene.py`:
-  - User-facing heatmap strings (templates + shipped JS literals) contain no "significant" or "statistically"
+  - User-facing heatmap strings (templates + shipped JS literals) contain no "significant" or "statistically" (note: `METRICS.md` technical explanation is excluded from this check per blueprint §14.2 regression group 5)
   - `README` and templates contain no µs/microsecond precision claims for timing
   - Timing-honesty note is present in results template
   - API has no bigram/pause/recalculate routes

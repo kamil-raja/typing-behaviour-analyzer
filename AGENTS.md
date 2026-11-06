@@ -46,9 +46,9 @@ Do **not** modify `TBA_BLUEPRINT_v3_FINAL.md` under any circumstances.
 3. **No metric math in JS.** The browser shows *provisional* live stats only; all stored and final statistics are computed server-side.
 4. **No SQL in the engine.** `app/repository.py` owns every SQL statement.
 5. **No ORM.** Use `sqlite3` directly with parameterised queries.
-6. **No metric math in JS** — the browser's live WPM/accuracy display is labelled *provisional* and computed only for UX feedback.
-7. **Client never sends** `ended_at_ms` or `end_reason`. The server derives these by replay.
-8. **Client never sends the text.** The server rebuilds it from `text_ref`.
+6. **Client never sends** `ended_at_ms` or `end_reason`. The server derives these by replay.
+7. **Client never sends the text.** The server rebuilds it from `text_ref`.
+8. **No SQL in routes.** Routes call `repository.py`; they never construct or execute SQL themselves.
 
 ---
 
