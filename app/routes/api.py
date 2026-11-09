@@ -31,6 +31,7 @@ from ..errors import (
     INCOMPLETE_SESSION,
     INVALID_EVENT_SEQUENCE,
     INVALID_JSON,
+    NOT_FOUND,
     PAYLOAD_TOO_LARGE,
     SESSION_TOO_SHORT,
     VALIDATION_ERROR,
@@ -109,6 +110,26 @@ def _session_warnings(record: SessionRecord) -> list[dict[str, Any]]:
         }
         for warning in record.warnings
     ]
+
+
+def _session_detail(record: SessionRecord) -> dict[str, Any]:
+    """Shape the stored session metadata; metrics and key stats are separate."""
+    return {
+        "session_id": record.session_id,
+        "created_at": record.created_at,
+        "schema_version": record.schema_version,
+        "mode": record.mode,
+        "duration_limit_ms": record.duration_limit_ms,
+        "text_ref": dict(record.text_ref),
+        "passage_text": record.passage_text,
+        "typed_text": record.typed_text,
+        "active_duration_ms": record.active_duration_ms,
+        "end_reason": record.end_reason,
+        "client": dict(record.client),
+        "layout_hint": record.layout_hint,
+        "analysis_version": record.analysis_version,
+        "warnings": _session_warnings(record),
+    }
 
 
 @api_bp.get("/texts/passages")
@@ -297,4 +318,28 @@ def create_session() -> Response | tuple[Response, int]:
             }
         ),
         201,
+    )
+
+
+@api_bp.get("/sessions/<session_id>")
+def get_session(session_id: str) -> Response | tuple[Response, int]:
+    """Return one stored session's metadata, metrics and per-key sums."""
+    repository: SessionRepository = current_app.extensions[STORE_EXTENSION_KEY]
+    record = repository.get(session_id)
+    if record is None:
+        return json_error(
+            NOT_FOUND,
+            "Session not found.",
+            [{"field": "session_id", "problem": "does not exist"}],
+            status=404,
+        )
+
+    return jsonify(
+        {
+            "session": _session_detail(record),
+            "metrics": asdict(record.metrics),
+            "key_stats": [
+                asdict(stat) for stat in repository.get_key_stats(session_id)
+            ],
+        }
     )

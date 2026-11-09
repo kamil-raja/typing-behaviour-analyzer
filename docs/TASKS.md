@@ -168,14 +168,17 @@
 - [ ] **Commit:** `feat(db): persistence — single-transaction save and round-trip tests`
 
 ### P0-D2-03: Results page (full)
-- [ ] Implement `GET /api/sessions/<id>` returning `{ session, metrics, key_stats }`
-- [ ] Implement `app/templates/results.html` with all three tiers (see `docs/UI_DESIGN.md` §5)
-- [ ] Implement `app/static/js/results-page.js`
-- [ ] Every metric label has a `?` definition tooltip
-- [ ] "About the measurements" note present (§5.5 timing honesty)
-- [ ] Data-quality line shows only when non-zero
-- [ ] `Eu` shown only when non-zero
-- [ ] **Acceptance:** all metrics displayed correctly; tooltips work; note is present
+> **Status (2026-11-10):** Complete — API (ADR-035) and results-page UI.
+- [x] Implement `GET /api/sessions/<id>` returning `{ session, metrics, key_stats }` (2026-11-10; ADR-035)
+- [x] Implement `app/templates/results.html` with all three tiers (see `docs/UI_DESIGN.md` §5)
+- [x] Implement `app/static/js/results-page.js` (tooltip interaction only; no fetching or metric math)
+- [x] Every metric label has a `?` definition tooltip (accessible button + `role="tooltip"` text)
+- [x] "About the measurements" note present (§5.5 timing honesty)
+- [x] Data-quality line shows only when non-zero
+- [x] `Eu` shown only when non-zero
+- [x] **Acceptance:** all metrics displayed correctly; tooltips work; note is present
+- [x] **Files touched:** `app/templates/results.html`, `app/static/js/results-page.js`, `app/static/css/components.css`, `tests/test_sessions.py`, `tests/test_infrastructure.py`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- [x] **Commit (deferred):** `feat(results): three-tier results page with metric tooltips` — not performed; commits require explicit approval
 
 ### P0-D2-04: History page
 - [ ] Implement `GET /api/sessions?limit=&offset=` returning `{ items, total }`

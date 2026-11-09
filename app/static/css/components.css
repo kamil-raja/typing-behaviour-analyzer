@@ -176,6 +176,12 @@
   font-size: var(--font-size-xs);
 }
 
+.metric-help-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
 .metric-help {
   display: inline-flex;
   align-items: center;
@@ -192,9 +198,39 @@
 }
 
 .metric-help:hover,
-.metric-help:focus-visible {
+.metric-help:focus-visible,
+.metric-help[aria-expanded="true"] {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.metric-tooltip {
+  position: absolute;
+  top: calc(100% + var(--space-half));
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: min(34ch, 80vw);
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-base);
+  text-align: left;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-fast) ease;
+}
+
+.metric-help-wrap:hover .metric-tooltip,
+.metric-help:focus-visible + .metric-tooltip,
+.metric-help[aria-expanded="true"] + .metric-tooltip {
+  visibility: visible;
+  opacity: 1;
 }
 
 .notice {

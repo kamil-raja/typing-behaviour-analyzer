@@ -197,6 +197,9 @@ def test_results_page_renders_server_metrics(
     assert "New test" in html
     assert "analysis version 1" in html
     assert "provisional" not in html.lower()
+    assert 'data-metric-help' in html
+    assert 'role="tooltip"' in html
+    assert "js/results-page.js" in html
 
     net_wpm = body["metrics"]["net_wpm"]
     assert str(round(net_wpm, 1)) in html
@@ -474,6 +477,7 @@ def test_clean_result_hides_erased_unresolved_error(
 
     html = client.get(body["links"]["results"]).get_data(as_text=True)
     assert "Erased, not retyped correctly" not in html
+    assert "Data quality" not in html
 
 
 def test_invalid_dwell_is_reported_as_a_warning(
@@ -496,6 +500,31 @@ def test_invalid_dwell_is_reported_as_a_warning(
     html = client.get(body["links"]["results"]).get_data(as_text=True)
     assert "—" in html
     assert "None" not in html
+    assert "Data quality" in html
+    assert "Dwell times outside 0-1000 ms were excluded." in html
+
+
+def test_results_page_reports_zero_length_intervals(
+    client: FlaskClient,
+) -> None:
+    """Zero intervals are excluded from statistics and listed as data quality."""
+    text = _words_text()
+    events = _typing_events(
+        text,
+        typed_text=text[:10],
+        interval_ms=0.0,
+        hold_ms=0.0,
+    )
+
+    response = client.post("/api/sessions", json=_payload(_words_ref(), events))
+
+    assert response.status_code == 201
+    body = response.get_json()
+    assert body["metrics"]["zero_interval_count"] > 0
+
+    html = client.get(body["links"]["results"]).get_data(as_text=True)
+    assert "Data quality" in html
+    assert "interval(s) of zero length were excluded" in html
 
 
 def test_unknown_results_session_is_not_found(client: FlaskClient) -> None:
@@ -558,3 +587,102 @@ def test_results_template_has_required_sections() -> None:
     assert "New test" in source
     assert "Take another test" in source
     assert "provisional" not in source.lower()
+    assert "data-metric-help" in source
+    assert 'role="tooltip"' in source
+    assert "js/results-page.js" in source
+
+
+def test_results_page_script_handles_tooltip_dismissal() -> None:
+    """The page module wires click, Escape and outside-click dismissal."""
+    source = (ROOT / "app" / "static" / "js" / "results-page.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'querySelectorAll("[data-metric-help]")' in source
+    assert 'setAttribute("aria-expanded"' in source
+    assert 'event.key === "Escape"' in source
+    assert 'closest(".metric-help-wrap")' in source
+    assert "fetch(" not in source
+
+
+def test_session_detail_returns_session_metrics_and_key_stats(
+    app: Flask,
+    client: FlaskClient,
+) -> None:
+    """GET /api/sessions/<id> returns the documented three-part envelope."""
+    text = _words_text()
+    events = _typing_events(text, typed_text=text[:15])
+    submission = client.post("/api/sessions", json=_payload(_words_ref(), events))
+    session_id = submission.get_json()["session_id"]
+
+    response = client.get(f"/api/sessions/{session_id}")
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert set(body) == {"session", "metrics", "key_stats"}
+
+    stored = _store(app).get(session_id)
+    assert stored is not None
+    assert body["session"] == {
+        "session_id": stored.session_id,
+        "created_at": stored.created_at,
+        "schema_version": stored.schema_version,
+        "mode": stored.mode,
+        "duration_limit_ms": stored.duration_limit_ms,
+        "text_ref": dict(stored.text_ref),
+        "passage_text": stored.passage_text,
+        "typed_text": stored.typed_text,
+        "active_duration_ms": stored.active_duration_ms,
+        "end_reason": stored.end_reason,
+        "client": dict(stored.client),
+        "layout_hint": stored.layout_hint,
+        "analysis_version": stored.analysis_version,
+        "warnings": [],
+    }
+
+    assert body["metrics"] == asdict(stored.metrics)
+    assert body["metrics"]["error_rate"] == 100.0 - body["metrics"]["accuracy_pct"]
+
+    expected_key_stats = [
+        asdict(stat)
+        for _, stat in sorted(
+            analyze_session(text, "time", 30000, events).session_key_stats.items()
+        )
+    ]
+    assert body["key_stats"] == expected_key_stats
+    assert [stat["key_code"] for stat in body["key_stats"]] == sorted(
+        stat["key_code"] for stat in body["key_stats"]
+    )
+
+
+def test_session_detail_includes_dwell_only_backspace_row(
+    client: FlaskClient,
+) -> None:
+    """Per-key stats include the physical Backspace row with no observations."""
+    text = _words_text()
+    events = _typing_events(text, typed_text=text[:15])
+    _append(events, "down", 1500.0, "Backspace", "Backspace")
+    _append(events, "up", 1545.0, "Backspace", None)
+    submission = client.post("/api/sessions", json=_payload(_words_ref(), events))
+    session_id = submission.get_json()["session_id"]
+
+    body = client.get(f"/api/sessions/{session_id}").get_json()
+
+    backspace = next(
+        stat for stat in body["key_stats"] if stat["key_code"] == "Backspace"
+    )
+    assert backspace["attempts"] == 0
+    assert backspace["errors"] == 0
+    assert backspace["dwell_count"] == 1
+    assert backspace["dwell_sum_ms"] > 0
+
+
+def test_unknown_session_detail_is_not_found(client: FlaskClient) -> None:
+    """An unknown session id returns 404 in the documented error shape."""
+    response = client.get("/api/sessions/not-a-real-session")
+
+    assert response.status_code == 404
+    error = response.get_json()["error"]
+    assert error["code"] == "NOT_FOUND"
+    assert error["message"]
+    assert error["details"][0]["field"] == "session_id"

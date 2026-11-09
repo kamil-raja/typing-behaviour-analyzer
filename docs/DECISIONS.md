@@ -395,6 +395,17 @@ P0-D1-05 will map expected characters through `CHAR_TO_CODE` and merge the two m
 - Routes keep handling only JSON shaping; pages.py renders from `SessionRecord`; the results template reads `session.active_duration_ms` instead of the in-memory `replay` object. `app/session_store.py` is deleted.
 **Consequences:** `pytest test_sessions.py` keeps working with `SessionRepository` behind the same `create`/`get`/`count` calls. No metric is recomputed from raw events on read; the only arithmetic is the documented error-rate identity. `GET /api/sessions/<id>` (P0-D2-03) can build directly on `get()` and `get_key_stats()`.
 
+### ADR-035: Session detail API response shape
+**Date:** 2026-11-10
+**Status:** Approved
+**Context:** Blueprint §10 fixes `GET /api/sessions/<id>` as `{ session, metrics, key_stats }` but does not name the nested fields. The persisted shapes already exist: `SessionRecord` (ADR-034), `SessionMetrics`, and `SessionKeyStat` (ADR-024). The endpoint must serialise them without recomputing metrics or exposing SQL.
+**Decision:**
+- `session` mirrors the stored session record: `session_id`, `created_at`, `schema_version`, `mode`, `duration_limit_ms`, `text_ref`, `passage_text`, `typed_text`, `active_duration_ms`, `end_reason`, `client`, `layout_hint`, `analysis_version`, and `warnings` (the persisted non-zero data-quality conditions).
+- `metrics` is exactly `asdict(SessionMetrics)` — the stored metric fields including the read-back `error_rate` identity and `invalid_dwell_count` (ADR-034). Session context (`mode`, `duration_limit_ms`, `active_duration_ms`, `end_reason`, `analysis_version`) lives in `session`, unlike the flattened `POST /api/sessions` response.
+- `key_stats` is the ordered list of stored `SessionKeyStat` rows (`key_code`, `attempts`, `errors`, `dwell_count`, `dwell_sum_ms`, `iki_count`, `iki_sum_ms`) from `get_key_stats()`. No means or classification are added here; those belong to the P0-D3-01 analytics endpoint.
+- Unknown ids return `404 NOT_FOUND` in the documented error envelope. The route calls only `repository.get()` and `repository.get_key_stats()`.
+**Consequences:** The response exposes persisted values only, so the results page and API cannot disagree. The remaining P0-D2-03 UI can consume this shape; adding per-key means or `series.wpm` (P1) is an additive API change.
+
 ---
 
 ## Open Ambiguities

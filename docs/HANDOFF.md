@@ -52,12 +52,44 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 | Field | Value |
 |---|---|
 | **Branch** | `database-version` (in sync with `origin/database-version`) |
-| **Status** | Uncommitted P0-D2-02 work: new `app/repository.py`, `tests/test_repository.py`; modified `app/__init__.py`, `app/routes/api.py`, `app/routes/pages.py`, `app/templates/results.html`, `tests/test_sessions.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`; deleted `app/session_store.py` |
-| **Last commit** | `8b1e811 feat(db): establish SQLite database foundation` (P0-D2-01) |
+| **Status** | Uncommitted P0-D2-03 work: modified `app/routes/api.py`, `app/templates/results.html`, `app/static/css/components.css`, `tests/test_sessions.py`, `tests/test_infrastructure.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`; new `app/static/js/results-page.js` |
+| **Last commit** | `4992846 feat(db): persistence — single-transaction save and round-trip tests` (P0-D2-02) |
 | **Tags** | None yet |
-| **Commit/push** | **None performed by this agent.** P0-D1-01–P0-D1-10 were committed as `9c02975`, `147ec1e`, `e9e2215`, `61d8c36`, `55130e1`, `1c0137a`, `4599be0`, `3cc8a56`, `20864ab`, `40e41dc`; the dev-server fix as `8a940b4`; P0-D2-01 as `8b1e811` (all committed externally). This agent composes working-tree changes only. |
+| **Commit/push** | **None performed by this agent.** P0-D1-01–P0-D1-10 were committed as `9c02975`, `147ec1e`, `e9e2215`, `61d8c36`, `55130e1`, `1c0137a`, `4599be0`, `3cc8a56`, `20864ab`, `40e41dc`; the dev-server fix as `8a940b4`; P0-D2-01 as `8b1e811`; P0-D2-02 as `4992846` (all committed externally). This agent composes working-tree changes only. |
 
 `.venv/`, `__pycache__/`, and `instance/` (including `instance/typing.db` created by the first-run check) are ignored and are not part of the working-tree changes.
+
+### Completed This Session — P0-D2-03 (part 2) Results page UI
+
+| File | Purpose |
+|---|---|
+| `app/templates/results.html` | Full three-tier layout (hero Net WPM/Accuracy, Supporting metrics, Detail and timing, More detail); accessible tooltip macro; module script block |
+| `app/static/js/results-page.js` | Tooltip interaction: assigns ids/`aria-describedby`, toggles `aria-expanded`, closes on blur, Escape and outside click; no fetching and no metric math |
+| `app/static/css/components.css` | Tooltip wrap/button/panel styles plus the existing results styles, all from design tokens |
+| `tests/test_sessions.py` | Tooltip markup/JS contracts, data-quality absence on clean sessions, zero-length interval reporting, and the `Eu`/data-quality assertions |
+| `tests/test_infrastructure.py` | Static asset check now includes `/static/js/results-page.js` |
+| `docs/TASKS.md`, `docs/PROGRESS.md`, `docs/HANDOFF.md` | P0-D2-03 marked complete; test count and next-task updates |
+
+- Tooltips are progressive: the button keeps a `title` fallback for no-JS, and `results-page.js` removes it once the `role="tooltip"` panel is wired. Hover, `:focus-visible` and `aria-expanded="true"` all reveal the panel through CSS only.
+- Conditional rendering: `Eu` appears only when `metrics.erased_unresolved_errors > 0`; the Data quality section appears only when `warnings` is non-empty or `metrics.zero_interval_count > 0`; every unavailable numeric value stays `—`.
+- No metric math, SQL or API calls were added to JavaScript. The page remains server-rendered from the persisted `SessionRecord`; `GET /api/sessions/<id>` is unchanged (ADR-035).
+- Browser smoke test (Playwright, real persisted session `053d6adeee02460ead0559dfda2b7204`): 25 tooltips, click pins, hover shows, Escape and outside click dismiss, `Eu` and Data quality visible. The only console error is the pre-existing `/favicon.ico` 404.
+- `pytest tests/ -q`: **474 passed** (472 previous + 2 new).
+- **P0-D2-03 is now fully complete:** API (ADR-035) plus the results-page UI.
+
+### Completed This Session — P0-D2-03 (part 1) Session retrieval API
+
+| File | Purpose |
+|---|---|
+| `app/routes/api.py` | `GET /api/sessions/<id>` returns `{ session, metrics, key_stats }` from `SessionRepository.get()`/`get_key_stats()`; unknown ids return `404 NOT_FOUND`; `_session_detail()` serialises the stored record without metric math or SQL |
+| `tests/test_sessions.py` | Three endpoint cases: full envelope plus session/metric/key-stat fidelity, the dwell-only Backspace row, and the unknown-id 404 |
+| `docs/DECISIONS.md` | ADR-035 (nested response shape; blueprint §10 fixes only the envelope) |
+| `docs/TASKS.md`, `docs/PROGRESS.md`, `docs/HANDOFF.md` | Status, test count and next-task updates |
+
+- The endpoint serialises persisted values only: `session` mirrors the stored record (including the persisted `warnings`), `metrics` is exactly `asdict(SessionMetrics)` with the read-back `error_rate` identity, and `key_stats` is the ordered list of stored `SessionKeyStat` rows. No SQL or metric math exists in the route.
+- `pytest tests/test_sessions.py -q -k "session_detail or unknown_session_detail"`: **3 passed**.
+- `pytest tests/ -q`: **472 passed** (469 previous + 3 new).
+- **P0-D2-03 is now fully complete** after part 2 (results-page UI) above; this part covered only the retrieval endpoint.
 
 ### Completed This Session — P0-D2-02 Repository and persistence
 
@@ -288,14 +320,17 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 ### Verification
 
-- `python -m pytest tests\ -q`: **469 passed** (7 fixture-structure checks, 1 fixture-G check, 2 conftest fixture checks, 2 infrastructure checks, 18 API/page cases, 24 replay tests, 57 metric tests, 33 key tests, 190 validator cases, 76 text-resolution cases, 24 vertical-slice cases, 25 schema/connection cases, 10 repository tests).
+- `python -m pytest tests\ -q`: **474 passed** (7 fixture-structure checks, 1 fixture-G check, 2 conftest fixture checks, 2 infrastructure checks, 18 API/page cases, 24 replay tests, 57 metric tests, 33 key tests, 190 validator cases, 76 text-resolution cases, 25 vertical-slice cases, 25 schema/connection cases, 10 repository tests, 2 results-UI contracts). The vertical-slice and results-UI cases cover session detail, tooltips, data quality and conditional `Eu`.
 - `GET /` returns **200** and renders `test.html`. `GET /api/texts/passages`, `/api/texts/passages/p_001` and `/api/texts/words?count=200` all return **200** with the ADR-029 shapes; unknown passages return **404 TEXT_NOT_FOUND**; invalid counts return **422 VALIDATION_ERROR** with `field: "count"`.
 - `POST /api/sessions` returns **201** with the documented `{session_id, metrics, warnings, links}` shape; malformed JSON is **400 INVALID_JSON**, schema failures are **422 VALIDATION_ERROR**, oversized bodies are **413 PAYLOAD_TOO_LARGE**, unknown passages are **404 TEXT_NOT_FOUND**, invalid sequences are **422 INVALID_EVENT_SEQUENCE**, incomplete passages are **422 INCOMPLETE_SESSION**, and short sessions are **422 SESSION_TOO_SHORT**.
-- `GET /results/<id>` renders the persisted server metrics from `SessionRecord`; an unknown id returns **404**. The results template distinguishes unavailable (`—`) from zero and shows `Eu` only when non-zero.
+- `GET /api/sessions/<id>` returns **200** with `{ session, metrics, key_stats }` (ADR-035); an unknown id returns **404 NOT_FOUND** with `field: "session_id"`. The route reads only through `SessionRepository.get()`/`get_key_stats()`.
+- `GET /results/<id>` renders the persisted server metrics from `SessionRecord`; an unknown id returns **404**. The results template distinguishes unavailable (`—`) from zero, shows `Eu` only when non-zero, and shows the Data quality section only when warnings exist or `zero_interval_count > 0`. Every metric label carries an accessible `?` tooltip (`button[data-metric-help]` + `role="tooltip"`), wired by `app/static/js/results-page.js`.
 - `POST /api/sessions` saves all four table shapes in one transaction and the 201 response is serialised from the persisted record (`SessionRepository.get()`), so response, page and database hold identical numbers. A mid-save failure leaves the database untouched (rollback test).
 - Chromium check against the running Flask server: 15 s time flow (Start → Type → Finish → Submit → Results → New test) and full 242-character passage completion both reached the results page with server-computed numbers, the timing-honesty note, the data-quality section where applicable, and working New test links; zero console errors.
+- Playwright smoke check on a real persisted session (`053d6adeee02460ead0559dfda2b7204`): 25 metric tooltips present; hover reveals, click pins, `:focus-visible` reveals, Escape closes and blurs, outside click closes; `Eu` and Data quality both visible. Only console error is the pre-existing `/favicon.ico` 404.
 - The final keyup of the completing keystroke is not captured because capture listeners are removed on finish. This is deliberate per `docs/EVENT_SCHEMA.md` §5 and is covered by the server's tolerated `open_at_end` condition.
 - `app/routes/api.py` contains no metric math and no SQL; it delegates every text lookup/generation to `app/texts.py`.
+- `app/static/js/results-page.js` contains no fetching and no metric math; it only manages tooltip ARIA state and dismissal. The page stays server-rendered from the persisted record.
 - `tests/` now contains the conftest, seven golden JSON fixtures, fixture checks, replay tests, metric tests, key-map/classification tests, validator tests, text-resolution tests, API/page tests and the frontend smoke checks.
 - No compatibility issues with Python 3.14.7.
 
@@ -303,28 +338,25 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 ## Exact Next Task
 
-**Task ID:** P0-D2-03
-**Title:** Results page (full)
+**Task ID:** P0-D2-04
+**Title:** History page
 
 **Scope (from `docs/TASKS.md`):**
-1. Implement `GET /api/sessions/<id>` returning `{ session, metrics, key_stats }`.
-2. Implement `app/templates/results.html` with all three tiers (see `docs/UI_DESIGN.md` §5).
-3. Implement `app/static/js/results-page.js`.
-4. Every metric label has a `?` definition tooltip.
-5. "About the measurements" note present (§5.5 timing honesty).
-6. Data-quality line shows only when non-zero.
-7. `Eu` shown only when non-zero.
-8. **Acceptance:** all metrics displayed correctly; tooltips work; note is present.
+1. Implement `GET /api/sessions?limit=&offset=` returning `{ items, total }`.
+2. Implement `app/templates/history.html` and `app/static/js/history-page.js`.
+3. 25 rows per page with pagination controls.
+4. Row click navigates to `/results/<id>`.
+5. Empty state: "No sessions yet."
+6. **Acceptance:** history lists correctly; pagination works; row click navigates.
 
 **Starting point:**
-- The full type → submit → results flow is database-backed: `POST /api/sessions` persists all four table shapes in a single transaction and `GET /results/<id>` renders the persisted `SessionRecord`. `pytest`: **469 passed**.
-- `app/repository.py` is the single SQL owner. `get(id)` returns `SessionRecord` (reconstructed `SessionMetrics` included) and `get_key_stats(id)` returns `list[SessionKeyStat]` ordered by key code — build the new endpoint on these two calls with no SQL in the route.
-- The template reads `session.active_duration_ms` because there is no in-memory `replay` object any more; `session.typed_text` and `session.passage_text` are also available on the record (ADR-034).
-- The endpoint contract differs subtly from shaping the POST response: `GET /api/sessions/<id>` returns `{ session, metrics, key_stats }` per blueprint §10 — build it on `get(id)` and `get_key_stats(id)` with no SQL in the route. Reuse `results.html` and `app/static/css/components.css`; extend that surface rather than duplicating it (ADR-032 handoff note).
-- The retained store decisions are all in ADR-034: events stored only up to the derived end (`validated.events[:len(events) - dropped_after_end]`), `data_quality_json` holds the non-zero warnings, `started_at`/`ignored` are not persisted, and `error_rate` is derived at read-back. `list_sessions(limit, offset)` and `get_key_stats(id)` are ready for the new endpoint and the P0-D2-04 history page; `iki_hist_json` stays NULL (P1).
-- The extension key remains `app.extensions["tba_session_store"]` holding `SessionRepository` (ADR-034); routes import `STORE_EXTENSION_KEY` from `app.repository`, and the POST response helper `_session_metrics()` in `app/routes/api.py` shows the metric serialisation to stay consistent with.
-- `tests/test_sessions.py` covers the existing results-rendering contracts; new endpoint cases fit in `tests/test_api.py` or `tests/test_sessions.py`.
-- Do not commit or push without approval. Writes stay in single transactions; do not widen the schema.
+- P0-D2-03 is complete: `GET /api/sessions/<id>` returns `{ session, metrics, key_stats }` (ADR-035) and `/results/<id>` renders the persisted session through the three-tier template with accessible metric tooltips.
+- `SessionRepository.list_sessions(limit, offset)` already returns newest-first summaries plus the exact total, so the history endpoint is mostly serialisation.
+- `app/repository.py` remains the single SQL owner; do not put SQL or metric math in routes.
+- Reuse `components.css` and the existing page patterns (`app/routes/pages.py`, `app/static/js/test-page.js`) rather than inventing a new surface.
+- The literal nav path `/history` in `base.html` should become `url_for` once the page endpoint exists (ADR-028).
+- `pytest tests/ -q`: **474 passed**.
+- Do not commit or push without approval.
 
 ---
 
@@ -337,7 +369,7 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 5. **`docs/UI_DESIGN.md` §7** references `docs/METRICS.md` §6 for the Wilson heuristic; it should be §12. Correct during UI documentation cleanup.
 6. **`README.md`** is absent; leave for P0-D3-05.
 7. **`app/routes/__init__.py`** now exists as the route package docstring; `pages.py` and `api.py` live beside it and are registered in `create_app()`.
-8. **HEAD is `8b1e811 feat(db): establish SQLite database foundation`** (P0-D2-01) on `database-version`, in sync with `origin/database-version`. The only uncommitted work is P0-D2-02 (repository and persistence, ADR-034) and its doc updates. Do not commit or push without approval.
+8. **HEAD is `4992846 feat(db): persistence — single-transaction save and round-trip tests`** (P0-D2-02) on `database-version`, in sync with `origin/database-version`. The only uncommitted work is the complete P0-D2-03 (API + results-page UI, ADR-035) and its doc updates. Do not commit or push without approval.
 9. **Fixture A's IKI values are null by decision.** The §13 row's mean/SD arithmetic conflicts with §8.5; the author ruled §8.5 wins (ADR-023). Do not "fix" this by restoring `800.0`/`0.0`.
 10. **`session_key_stats` rows are now stored** with every session (`executemany` in the same transaction as the session row, ADR-034); `get_key_stats(id)` reads them back ordered by key code.
 11. **Heatmap classification is not yet wired to an endpoint.** `classify_observation()` and `pooled_baseline_error_rate()` are reused by P0-D3-01; do not duplicate the formula in routes or SQL.
@@ -350,12 +382,13 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 18. **Provisional live stats are client-only.** WPM and accuracy in the live row are estimates over the current buffer and accepted keystrokes. Never store them or present them as final; the server remains the sole metric authority.
 19. **Submission is deferred with `queueMicrotask` (ADR-031).** Passage mode finishes inside the completing keydown handler, before capture records it. Do not make `onFinish` call `submitAttempt()` synchronously; a regression test in `tests/test_sessions.py` enforces the deferral.
 20. **Sessions persist across restarts.** The in-memory store (ADR-032) is replaced by `SessionRepository` behind the same `app.extensions["tba_session_store"]` key (ADR-034). Do not add SQL outside `app/repository.py` or tables outside blueprint §9.
-21. **`GET /results/<id>` renders the persisted `SessionRecord` server-side.** P0-D2-03 adds `GET /api/sessions/<id>` and the full results API. Reuse `results.html` rather than creating a second results surface.
+21. **`GET /api/sessions/<id>` returns `{ session, metrics, key_stats }` (ADR-035); `GET /results/<id>` renders the persisted `SessionRecord` server-side.** P0-D2-03 is complete; keep the results surface in `results.html`/`components.css`/`results-page.js` rather than creating a second one. `results-page.js` must stay presentation-only: no fetching, no metric math.
 22. **`invalid_dwell_count` is part of `SessionMetrics`.** Keep it in sync with the `invalid_dwell` warning (`count > 0` emits the warning). Do not re-derive it in routes.
 23. **The development server runs without the reloader.** `run.py` calls `app.run(host="127.0.0.1", port=5000, debug=True, use_reloader=False)`. Do not reintroduce the reloader, and do not launch the server through a detached shell; `Ctrl+C` in the starting terminal is the supported stop.
 24. **`session_metrics` has no `error_rate` and no `invalid_dwell_count` column** (ADR-033, ADR-034); the blueprint §9 column list is complete. The repository serialises `invalid_dwell_count` and the warning counters into `data_quality_json` and derives `error_rate = 100 − accuracy_pct` at read-back per `docs/METRICS.md` §4.4. Do not widen the schema for them.
 25. **Schema matches blueprint §9 verbatim, with SQLite-specific CHECK nuances** (ADR-033): `sessions.duration_limit_ms` must be 15000/30000/60000 for `time` and NULL for `passage`; the constraint carries an explicit `IS NOT NULL` because SQLite treats a NULL CHECK result as passing. `PRAGMA user_version` is 1; there is no migration path — a mismatched non-zero version aborts startup with the documented remedy (delete `instance/typing.db` during development).
 26. **Test apps never touch the developer database.** The `app` fixture in `tests/conftest.py` passes `DATABASE` inside `tmp_path` via `create_app(test_config)`; keep this isolation for all future persistence work.
+27. **Results tooltips are progressive enhancement.** The template ships a `title` fallback plus a `role="tooltip"` panel; `results-page.js` assigns ids, sets `aria-describedby` and removes `title`. Do not replace this with `title`-only help text or move metric definitions into JavaScript — the definitions are documentation and belong in the template.
 
 ---
 

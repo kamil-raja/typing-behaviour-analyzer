@@ -156,8 +156,24 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 - [x] Added `tests/test_repository.py`: round-trip fidelity, events-up-to-derived-end, restart persistence across repository instances, FK cascade, mid-save rollback with no partial data, paginated list, key-stats round-trip; updated `tests/test_sessions.py` for the repository
 - [x] `pytest tests/ -q`: **469 passed** (459 previous + 10 new)
 
+### Session retrieval API (2026-11-10)
+- [x] P0-D2-03 (API portion): added `GET /api/sessions/<id>` returning `{ session, metrics, key_stats }` from `SessionRepository.get()` and `get_key_stats()`; unknown ids return `404 NOT_FOUND`; the route contains no SQL or metric math
+- [x] Added three endpoint tests in `tests/test_sessions.py`: full envelope/session/metric/key-stat fidelity, the dwell-only Backspace row, and the unknown-id 404
+- [x] Recorded ADR-035 for the nested response shape (blueprint §10 fixes only the top-level envelope)
+- [x] `pytest tests/ -q`: **472 passed** (469 previous + 3 new)
+
+### Results page UI (2026-11-10)
+- [x] P0-D2-03 (UI portion): `app/templates/results.html` now carries the full three-tier layout (hero Net WPM/Accuracy, Supporting metrics, Detail and timing, More detail), each metric label with a `?` definition tooltip
+- [x] Replaced the native `title`-only help spans with accessible markup: a `<button data-metric-help>` plus an adjacent `role="tooltip"` span; `title` remains as a no-JS fallback until the module removes it
+- [x] Added `app/static/js/results-page.js`: assigns tooltip ids/`aria-describedby`, toggles `aria-expanded`, closes on blur, Escape and outside click; it never fetches or computes metrics
+- [x] Added tooltip styles to `app/static/css/components.css` using existing design tokens only; hover, `:focus-visible` and `aria-expanded` all show the definition
+- [x] Data quality renders only when warnings exist or `zero_interval_count > 0`; `Eu` renders only when non-zero; unavailable values stay `—` (never `None`)
+- [x] Added tests: tooltip markup/JS contracts, data-quality absence on clean sessions, zero-length interval reporting, and the new static asset; updated `tests/test_infrastructure.py`
+- [x] Verified in Chromium against a persisted session (`053d6adeee02460ead0559dfda2b7204`): 25 tooltips, hover/click/focus show, Escape and outside click dismiss, `Eu` and data quality visible, only console error is the pre-existing `/favicon.ico` 404
+- [x] `pytest tests/ -q`: **474 passed** (472 previous + 2 new)
+
 ### Application code
-- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, P0-D1-09 typing screen, and P0-D1-10 session submission with in-memory results; no database, history or analytics yet
+- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, P0-D1-09 typing screen, P0-D1-10 session submission, P0-D2-01 schema, P0-D2-02 persistence, P0-D2-03 session retrieval API and the three-tier results page; history, analytics and heatmap pages are still pending
 
 ---
 
@@ -177,7 +193,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 | P0-D1-10: First vertical slice | ✅ Complete (2026-11-06) — `POST /api/sessions` + in-memory results (ADR-031, ADR-032) |
 | P0-D2-01: DB schema and connection | ✅ Complete (2026-11-09) — `app/schema.sql` + `app/db.py`, ADR-033 |
 | P0-D2-02: Repository and persistence | ✅ Complete (2026-11-09) — `app/repository.py` + repository-backed routes (ADR-034) |
-| P0-D2-03: Results page (full) | ⬜ Not started |
+| P0-D2-03: Results page (full) | ✅ Complete (2026-11-10) — API (ADR-035) + three-tier UI with tooltips |
 | P0-D2-04: History page | ⬜ Not started |
 | P0-D2-05: Typing screen polish | ⬜ Not started |
 | P0-D2-06: Progress endpoint and analytics charts | ⬜ Not started |
@@ -192,9 +208,9 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 
 ## Next Milestone
 
-**Day 1 vertical slice:** by end of Day 1, a user should be able to type, submit, and see metrics — even without DB persistence. The engine must pass all golden fixtures (A–G).
+**Day 2:** database-backed persistence and the full results page are complete. Next is the history page so saved sessions are browsable.
 
-Exact next task: **P0-D2-01** — database schema and connection (`app/schema.sql`, `app/db.py`, `init_db()`), followed by P0-D2-02 persistence and P0-D2-03 results API.
+Exact next task: **P0-D2-04** — history page (`GET /api/sessions?limit=&offset=` returning `{ items, total }`, `app/templates/history.html`, `app/static/js/history-page.js`), followed by P0-D2-05 typing-screen polish.
 
 ---
 
