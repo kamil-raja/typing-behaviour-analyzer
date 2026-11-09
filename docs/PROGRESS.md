@@ -147,6 +147,15 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 - [x] Verified first-run behaviour: `create_app()` created `instance/typing.db` (git-ignored) with the four tables and `user_version = 1`
 - [x] `pytest tests/ -q`: **459 passed** (434 previous + 25 new)
 
+### Repository and persistence (2026-11-09)
+- [x] P0-D2-02: Created `app/repository.py` with every application SQL statement: `SessionRepository` writing sessions → session_metrics → `executemany` keystroke_events → `executemany` session_key_stats in a single transaction with full rollback on failure; `get(id)`, `count()`, `list_sessions(limit, offset)` (newest first, exact total) and `get_key_stats(id)`
+- [x] Attached the repository behind the historical `app.extensions["tba_session_store"]` key so routes and tests keep one service-locator surface; deleted `app/session_store.py`
+- [x] Only validated events up to the derived end are stored (EVENT_SCHEMA §10): replay drops a trailing suffix, so the repository retains `validated.events[:len(events) - dropped_after_end]`
+- [x] `data_quality_json` stores the non-zero `{code, count, message}` warnings (NULL when none); read-back reconstructs a full `SessionMetrics` from stored columns — `invalid_dwell_count` recovered from the stored warning, `error_rate` derived as `100 − accuracy_pct` per `docs/METRICS.md` §4.4 (logged in ADR-034 together with the non-persistence of `started_at`/`ignored`, which blueprint §9 defines no columns for)
+- [x] Rebuilt `POST /api/sessions` (persist, then respond from the stored record) and `GET /results/<id>` (renders the persisted record; template reads `session.active_duration_ms`)
+- [x] Added `tests/test_repository.py`: round-trip fidelity, events-up-to-derived-end, restart persistence across repository instances, FK cascade, mid-save rollback with no partial data, paginated list, key-stats round-trip; updated `tests/test_sessions.py` for the repository
+- [x] `pytest tests/ -q`: **469 passed** (459 previous + 10 new)
+
 ### Application code
 - [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, P0-D1-09 typing screen, and P0-D1-10 session submission with in-memory results; no database, history or analytics yet
 
@@ -167,7 +176,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 | P0-D1-09: Frontend — capture / typing engine | ✅ Complete (2026-11-06) |
 | P0-D1-10: First vertical slice | ✅ Complete (2026-11-06) — `POST /api/sessions` + in-memory results (ADR-031, ADR-032) |
 | P0-D2-01: DB schema and connection | ✅ Complete (2026-11-09) — `app/schema.sql` + `app/db.py`, ADR-033 |
-| P0-D2-02: Repository and persistence | ⬜ Not started |
+| P0-D2-02: Repository and persistence | ✅ Complete (2026-11-09) — `app/repository.py` + repository-backed routes (ADR-034) |
 | P0-D2-03: Results page (full) | ⬜ Not started |
 | P0-D2-04: History page | ⬜ Not started |
 | P0-D2-05: Typing screen polish | ⬜ Not started |

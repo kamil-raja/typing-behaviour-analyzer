@@ -123,7 +123,7 @@
           Active duration
           {{ help("Time from the first accepted keystroke to completion or to the timer limit.") }}
         </dt>
-        <dd class="numeric">{{ (replay.active_duration_ms / 1000)|round(2) }} s</dd>
+        <dd class="numeric">{{ (session.active_duration_ms / 1000)|round(2) }} s</dd>
       </div>
     </dl>
   </section>

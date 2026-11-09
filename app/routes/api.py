@@ -1,9 +1,9 @@
 """JSON API routes.
 
-The text endpoint contracts are fixed by ADR-029. ``POST /api/sessions`` is the
-first vertical slice: it parses the payload, delegates validation to
-``app.validators``, resolves the text through ``app.texts``, runs the pure
-engine, stores the result in memory and returns the documented response shape.
+The text endpoint contracts are fixed by ADR-029. ``POST /api/sessions`` parses
+the payload, delegates validation to ``app.validators``, resolves the text
+through ``app.texts``, runs the pure engine and persists the result through
+``app.repository`` before returning the documented response shape.
 
 Routes contain no metric math and no SQL.
 """
@@ -19,7 +19,6 @@ from typing import Any
 from flask import Blueprint, Response, current_app, jsonify, request, url_for
 
 from ..config import (
-    ANALYSIS_VERSION,
     MAX_SESSION_BODY_BYTES,
     SESSION_MIN_K,
     SESSION_MIN_T_MS,
@@ -37,7 +36,7 @@ from ..errors import (
     VALIDATION_ERROR,
     json_error,
 )
-from ..session_store import STORE_EXTENSION_KEY, InMemorySessionStore, StoredSession
+from ..repository import STORE_EXTENSION_KEY, SessionRecord, SessionRepository
 from ..texts import (
     TextNotFoundError,
     generate_words,
@@ -81,34 +80,34 @@ def _invalid_count(problem: str) -> tuple[Response, int]:
     )
 
 
-def _session_metrics(record: StoredSession) -> dict[str, Any]:
-    """Shape the authoritative engine metrics for the submission response.
+def _session_metrics(record: SessionRecord) -> dict[str, Any]:
+    """Shape the persisted engine metrics for the submission response.
 
-    This is serialisation only: every number comes from ``SessionMetrics`` or
-    the replay-derived session state.
+    This is serialisation only: every number was computed by the engine before
+    the repository stored it and is read back unchanged.
     """
-    metrics = asdict(record.analysis.metrics)
+    metrics = asdict(record.metrics)
     metrics.update(
         {
             "mode": record.mode,
             "duration_limit_ms": record.duration_limit_ms,
-            "active_duration_ms": record.analysis.replay.active_duration_ms,
-            "end_reason": record.analysis.replay.end_reason,
-            "analysis_version": ANALYSIS_VERSION,
+            "active_duration_ms": record.active_duration_ms,
+            "end_reason": record.end_reason,
+            "analysis_version": record.analysis_version,
         }
     )
     return metrics
 
 
-def _session_warnings(record: StoredSession) -> list[dict[str, Any]]:
-    """Shape the engine's data-quality warnings for JSON."""
+def _session_warnings(record: SessionRecord) -> list[dict[str, Any]]:
+    """Shape the persisted data-quality warnings for JSON."""
     return [
         {
             "code": warning.code,
             "count": warning.count,
             "message": warning.message,
         }
-        for warning in record.analysis.warnings
+        for warning in record.warnings
     ]
 
 
@@ -280,8 +279,8 @@ def create_session() -> Response | tuple[Response, int]:
             status=422,
         )
 
-    store: InMemorySessionStore = current_app.extensions[STORE_EXTENSION_KEY]
-    record = store.create(validated, analysis)
+    repository: SessionRepository = current_app.extensions[STORE_EXTENSION_KEY]
+    record = repository.create(validated, analysis)
 
     return (
         jsonify(

@@ -1,9 +1,10 @@
-"""API, integration and frontend-contract tests for the first vertical slice.
+"""API, integration and frontend-contract tests for session submission.
 
 These tests exercise the documented flow: ``POST /api/sessions`` validates the
-payload, resolves the text, runs the authoritative engine, stores the result in
-memory and returns metrics plus a results link. The results page must render
-those server-computed values, not provisional browser estimates.
+payload, resolves the text, runs the authoritative engine, persists the result
+through the repository and returns metrics plus a results link. The results
+page must render those server-computed values, not provisional browser
+estimates.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ from flask.testing import FlaskClient
 from app.config import MAX_SESSION_BODY_BYTES
 from app.engine import analyze_session
 from app.engine.keys import CHAR_TO_CODE
-from app.session_store import STORE_EXTENSION_KEY, InMemorySessionStore
+from app.repository import STORE_EXTENSION_KEY, SessionRepository
 from app.texts import generate_words, get_passage
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -132,7 +133,7 @@ def _payload(
     }
 
 
-def _store(app: Flask) -> InMemorySessionStore:
+def _store(app: Flask) -> SessionRepository:
     return app.extensions[STORE_EXTENSION_KEY]
 
 

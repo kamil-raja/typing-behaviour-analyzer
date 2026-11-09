@@ -154,15 +154,17 @@
 - [x] **Commit (deferred):** `feat(db): schema and connection management` — not performed; commits require explicit approval (see ADR-033)
 
 ### P0-D2-02: Repository and persistence
-- [ ] Implement `app/repository.py`: all SQL — INSERT session, INSERT metrics, INSERT events (`executemany`), INSERT key stats (`executemany`), all in a **single transaction**
-- [ ] Implement GET queries: session by id, session list (paginated), session key stats
-- [ ] Write `tests/test_repository.py`:
-  - Persistence round-trip (save and retrieve match)
-  - FK cascade (deleting session removes events and metrics)
+- [x] Implement `app/repository.py`: all SQL — INSERT session, INSERT metrics, INSERT events (`executemany`), INSERT key stats (`executemany`), all in a **single transaction**
+- [x] Implement GET queries: session by id, session list (paginated, newest first, with exact total), session key stats
+- [x] Write `tests/test_repository.py`:
+  - Persistence round-trip (save and retrieve match; 10 cases)
+  - FK cascade (deleting session removes events, metrics and key stats)
   - Rollback on mid-save failure (no partial data)
   - Paginated list returns correct total and items
-- [ ] Update `POST /api/sessions` to persist to DB
-- [ ] **Acceptance:** session saved after POST; retrievable by id; rollback works; `pytest` green
+- [x] Update `POST /api/sessions` to persist to DB; `GET /results/<id>` renders the persisted record; `app/session_store.py` removed (ADR-034)
+- [x] **Acceptance:** session saved after POST; retrievable by id; rollback works; `pytest tests/ -q`: **469 passed** (459 previous + 10 repository cases)
+- [x] **Files touched:** `app/repository.py`, `app/session_store.py` (deleted), `app/__init__.py`, `app/routes/api.py`, `app/routes/pages.py`, `app/templates/results.html`, `tests/test_repository.py`, `tests/test_sessions.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- [x] **Commit (deferred):** `feat(db): persistence — single-transaction save and round-trip tests` — not performed; commits require explicit approval (see ADR-034)
 - [ ] **Commit:** `feat(db): persistence — single-transaction save and round-trip tests`
 
 ### P0-D2-03: Results page (full)
