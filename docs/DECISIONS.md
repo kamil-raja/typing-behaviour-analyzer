@@ -366,6 +366,20 @@ P0-D1-05 will map expected characters through `CHAR_TO_CODE` and merge the two m
 - Routes and templates contain no metric math. The API only serialises engine output.
 **Consequences:** The full type → submit → results flow works without a database. The results page is temporary but already reads the same server-computed values the persisted version will expose.
 
+### ADR-033: SQLite schema, connection management and database location
+**Date:** 2026-11-08
+**Status:** Approved
+**Context:** P0-D2-01 requires `app/schema.sql` and `app/db.py` for the four tables in blueprint §9. The blueprint fixes the column names and the documented CHECKs (`type ∈ {down, up}`, `repeat ∈ {0,1}`) but does not name SQLite types, index names, the `user_version` value, or how tests should isolate the database from `instance/typing.db`. The engine also carries `error_rate` and `invalid_dwell_count`, which are not `session_metrics` columns in the blueprint.
+**Decision:**
+- Column storage types: identifiers and JSON snapshots are `TEXT`; counters, sequence numbers and limits are `INTEGER`; timings and computed ratios are `REAL`. `sessions.id` is the repository-generated 32-character uuid hex string.
+- CHECK constraints encode only documented invariants: `mode ∈ {time, passage}`, the matching duration rule (`time` requires 15000/30000/60000 ms; `passage` requires NULL), `end_reason ∈ {completed, time_up}`, `layout_hint ∈ {qwerty, non-qwerty, unknown}`, `type ∈ {down, up}`, `repeat ∈ {0,1}`, non-negative `seq`/`t_ms`, and `key IS NULL` exactly for `up` events.
+- Indexes are `idx_sessions_created_at` on `sessions(created_at)` and `idx_session_key_stats_key_code` on `session_key_stats(key_code)`; the `keystroke_events(session_id, seq)` UNIQUE constraint supplies its lookup index.
+- `PRAGMA user_version` is `1` (`SCHEMA_VERSION` in `app/db.py`). `CREATE TABLE IF NOT EXISTS` makes initialisation idempotent. A non-zero version other than 1 aborts with a clear error and the documented development remedy (delete `instance/typing.db`); no migration path is added in the initial build.
+- `DATABASE` defaults to `<app.instance_path>/typing.db` (the documented `instance/typing.db`). `create_app()` gains an optional `test_config` mapping applied before initialisation, so the test application uses `tmp_path/typing.db` instead of the developer database.
+- `connect()` sets `row_factory = sqlite3.Row` and `PRAGMA foreign_keys = ON`. `get_db()` stores one connection in `g` per request; `close_db()` is registered as the application-context teardown.
+- `session_metrics` keeps exactly the blueprint columns. `error_rate` is derivable from `accuracy_pct`, and `invalid_dwell_count` plus the warning counters belong in `data_quality_json`; adding extra columns would break blueprint fidelity. P0-D2-02 owns how those JSON payloads are populated.
+**Consequences:** The schema is a direct transcription of blueprint §9, so P0-D2-02 can insert the engine output without schema changes except for serialising `data_quality_json`. Tests never touch the developer database, and every connection enforces foreign keys.
+
 ---
 
 ## Open Ambiguities

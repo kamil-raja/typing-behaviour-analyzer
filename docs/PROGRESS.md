@@ -138,6 +138,15 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 - [x] Verified in Chromium: 15 s time flow (Start → Type → Finish → Submit → Results → New test) and passage completion (242 characters, 100% accuracy, `completed`); zero console errors
 - [x] `pytest tests/ -v`: **434 passed** (410 previous + 24 vertical-slice cases)
 
+### Database schema and connection (2026-11-09)
+- [x] P0-D2-01: Created `app/schema.sql` transcribing blueprint §9: the `sessions`, `session_metrics`, `keystroke_events` and `session_key_stats` tables with foreign keys (`ON DELETE CASCADE`), the documented `sessions(created_at)` and `session_key_stats(key_code)` indexes, and CHECK constraints for mode/end-reason enums, the time/passage duration pairing, event `type`/`key`/`repeat` rules and non-negative `seq`/`t_ms`
+- [x] Created `app/db.py`: `connect()` with `row_factory = sqlite3.Row` and `PRAGMA foreign_keys = ON`, `apply_schema()` with idempotent `CREATE TABLE IF NOT EXISTS` and `PRAGMA user_version = 1`, `init_db()`, and the per-request `g.db` connection closed at app-context teardown
+- [x] Wired `init_db()` into `create_app()`; `DATABASE` defaults to `instance/typing.db`, and `create_app(test_config)` lets tests point it at a temporary file
+- [x] Updated `tests/conftest.py` so the `app` fixture isolates the database in `tmp_path`; added `tests/test_db.py` with 25 schema/connection cases (column fidelity, indexes, cascade, constraint rejections, `g.db` lifecycle, schema-version guard)
+- [x] Recorded ADR-033 (types, CHECKs, index names, `user_version` semantics, test isolation, and the decision to keep blueprint columns exactly — `error_rate`/`invalid_dwell_count` are not columns; they live in the API layer / `data_quality_json`, which P0-D2-02 populates)
+- [x] Verified first-run behaviour: `create_app()` created `instance/typing.db` (git-ignored) with the four tables and `user_version = 1`
+- [x] `pytest tests/ -q`: **459 passed** (434 previous + 25 new)
+
 ### Application code
 - [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, P0-D1-09 typing screen, and P0-D1-10 session submission with in-memory results; no database, history or analytics yet
 
@@ -157,7 +166,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 | P0-D1-08: Frontend — themes / CSS | ✅ Complete (2026-11-06) |
 | P0-D1-09: Frontend — capture / typing engine | ✅ Complete (2026-11-06) |
 | P0-D1-10: First vertical slice | ✅ Complete (2026-11-06) — `POST /api/sessions` + in-memory results (ADR-031, ADR-032) |
-| P0-D2-01: DB schema and connection | ⬜ Not started |
+| P0-D2-01: DB schema and connection | ✅ Complete (2026-11-09) — `app/schema.sql` + `app/db.py`, ADR-033 |
 | P0-D2-02: Repository and persistence | ⬜ Not started |
 | P0-D2-03: Results page (full) | ⬜ Not started |
 | P0-D2-04: History page | ⬜ Not started |

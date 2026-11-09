@@ -144,12 +144,14 @@
 ## Day 2 — Persistence, Results, History, Progress
 
 ### P0-D2-01: Database schema and connection
-- [ ] Write `app/schema.sql`: DDL for all four tables per `docs/ARCHITECTURE.md` §5
+- [x] Write `app/schema.sql`: DDL for all four tables per `docs/ARCHITECTURE.md` §5
   - `sessions`, `session_metrics`, `keystroke_events`, `session_key_stats`
   - Foreign keys, indexes, CHECK constraints
-- [ ] Implement `app/db.py`: connection factory, `PRAGMA foreign_keys = ON`, `PRAGMA user_version`, `g.db` per-request connection
-- [ ] Add `init_db()` to `create_app()`
-- [ ] **Acceptance:** DB initialises on first run; schema matches blueprint exactly
+- [x] Implement `app/db.py`: connection factory, `PRAGMA foreign_keys = ON`, `PRAGMA user_version`, `g.db` per-request connection
+- [x] Add `init_db()` to `create_app()`
+- [x] **Acceptance:** DB initialises on first run; schema matches blueprint exactly; `pytest tests -q`: **459 passed** (434 previous + 25 new schema/connection cases)
+- [x] **Files touched:** `app/schema.sql`, `app/db.py`, `app/__init__.py`, `tests/conftest.py`, `tests/test_db.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- [x] **Commit (deferred):** `feat(db): schema and connection management` — not performed; commits require explicit approval (see ADR-033)
 
 ### P0-D2-02: Repository and persistence
 - [ ] Implement `app/repository.py`: all SQL — INSERT session, INSERT metrics, INSERT events (`executemany`), INSERT key stats (`executemany`), all in a **single transaction**

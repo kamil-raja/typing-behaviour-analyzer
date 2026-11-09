@@ -30,7 +30,7 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 
 ---
 
-## Current State (as of 2026-11-06)
+## Current State (as of 2026-11-09)
 
 ### Development server (Windows)
 
@@ -51,13 +51,34 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 | Field | Value |
 |---|---|
-| **Branch** | `feature/project-foundation` |
-| **Status** | Uncommitted development-server fix and doc sync: `run.py`, `docs/HANDOFF.md`, `docs/TASKS.md`. P0-D1-10 was committed externally as `40e41dc`. |
-| **Last commit** | `40e41dc feat(core): complete first typing analysis workflow` (P0-D1-10, committed externally) |
+| **Branch** | `feature/project-foundation` (in sync with `origin/feature/project-foundation`) |
+| **Status** | Uncommitted P0-D2-01 work: new `app/schema.sql`, `app/db.py`, `tests/test_db.py`; modified `app/__init__.py`, `tests/conftest.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md` |
+| **Last commit** | `8a940b4 fix(dev): simplify Flask server lifecycle` |
 | **Tags** | None yet |
-| **Commit/push** | **None performed by this agent.** P0-D1-01 was committed in `9c02975`; P0-D1-02 in `147ec1e`; P0-D1-03 in `e9e2215`; P0-D1-04 in `61d8c36`; P0-D1-05 in `55130e1`; P0-D1-06 in `1c0137a`; P0-D1-07 in `4599be0`; P0-D1-08 in `3cc8a56`; P0-D1-09 in `20864ab`; P0-D1-10 in `40e41dc`. The branch is in sync with `origin/feature/project-foundation`. |
+| **Commit/push** | **None performed by this agent.** P0-D1-01 was committed in `9c02975`; P0-D1-02 in `147ec1e`; P0-D1-03 in `e9e2215`; P0-D1-04 in `61d8c36`; P0-D1-05 in `55130e1`; P0-D1-06 in `1c0137a`; P0-D1-07 in `4599be0`; P0-D1-08 in `3cc8a56`; P0-D1-09 in `20864ab`; P0-D1-10 in `40e41dc`; the dev-server fix in `8a940b4`. The branch is in sync with `origin/feature/project-foundation`. |
 
-`.venv/`, `__pycache__/`, and `instance/` are ignored and are not part of the working-tree changes.
+`.venv/`, `__pycache__/`, and `instance/` (including `instance/typing.db` created by this task's first-run check) are ignored and are not part of the working-tree changes.
+
+### Completed This Session — P0-D2-01 Database schema and connection
+
+| File | Purpose |
+|---|---|
+| `app/schema.sql` | DDL transcribing blueprint §9: `sessions`, `session_metrics`, `keystroke_events`, `session_key_stats` |
+| `app/db.py` | `connect()`, `apply_schema()`, `init_db()`, `get_db()`/`close_db()`; `SCHEMA_VERSION = 1` |
+| `app/__init__.py` | `create_app(test_config)` now sets `DATABASE` (default `instance/typing.db`) and calls `init_db()` |
+| `tests/conftest.py` | The `app` fixture creates the app with `DATABASE` in `tmp_path`, so tests never touch the developer database |
+| `tests/test_db.py` | 25 schema/connection cases: fresh-run creation, column fidelity, indexes, constraints, cascade, `g.db` lifecycle, version guard |
+| `docs/DECISIONS.md` | ADR-033 (types, CHECK constraints, index names, `user_version`, test isolation, blueprint column fidelity) |
+
+- The schema is blueprint §9 verbatim. Be aware of the deliberate constraint details (ADR-033):
+  - `sessions.duration_limit_ms` must be 15000/30000/60000 for `time` and NULL for `passage`; SQLite evaluates a CHECK with NULL as *passing*, so the constraint includes an explicit `IS NOT NULL` test for time mode.
+  - `session_metrics` has **no `error_rate` and no `invalid_dwell_count` column** — the blueprint column list is complete. P0-D2-02 must put `invalid_dwell_count` and the warning counters into `data_quality_json`; `error_rate` is derivable from `accuracy_pct`.
+  - `keystroke_events.key` is NULL exactly for `up` events; `repeat` is 0/1; `(session_id, seq)` is UNIQUE.
+  - `iki_hist_json` and `data_quality_json` are nullable TEXT columns reserved for P0-D2-02/P1.
+- `apply_schema()` is idempotent (`CREATE TABLE IF NOT EXISTS`), records `PRAGMA user_version = 1`, and raises `RuntimeError` on a non-zero, unexpected schema version with the documented remedy (delete `instance/typing.db` during development; no migration path in the initial build).
+- `connect()` sets `row_factory = sqlite3.Row` and `PRAGMA foreign_keys = ON`; `get_db()` stores one connection in `g` per request and `close_db()` runs at app-context teardown.
+- First-run check: `create_app()` created `instance/typing.db` (git-ignored) with the four tables and `user_version = 1`.
+- `pytest tests/ -q`: **459 passed** (434 previous + 25 new).
 
 ### Completed This Session — P0-D1-01 Scaffold
 
@@ -247,7 +268,7 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 ### Verification
 
-- `python -m pytest tests\ -q`: **434 passed** (7 fixture-structure checks, 1 fixture-G check, 2 conftest fixture checks, 2 infrastructure checks, 18 API/page cases, 24 replay tests, 57 metric tests, 33 key tests, 190 validator cases, 76 text-resolution cases, 24 vertical-slice cases).
+- `python -m pytest tests\ -q`: **459 passed** (7 fixture-structure checks, 1 fixture-G check, 2 conftest fixture checks, 2 infrastructure checks, 18 API/page cases, 24 replay tests, 57 metric tests, 33 key tests, 190 validator cases, 76 text-resolution cases, 24 vertical-slice cases, 25 schema/connection cases).
 - `GET /` returns **200** and renders `test.html`. `GET /api/texts/passages`, `/api/texts/passages/p_001` and `/api/texts/words?count=200` all return **200** with the ADR-029 shapes; unknown passages return **404 TEXT_NOT_FOUND**; invalid counts return **422 VALIDATION_ERROR** with `field: "count"`.
 - `POST /api/sessions` returns **201** with the documented `{session_id, metrics, warnings, links}` shape; malformed JSON is **400 INVALID_JSON**, schema failures are **422 VALIDATION_ERROR**, oversized bodies are **413 PAYLOAD_TOO_LARGE**, unknown passages are **404 TEXT_NOT_FOUND**, invalid sequences are **422 INVALID_EVENT_SEQUENCE**, incomplete passages are **422 INCOMPLETE_SESSION**, and short sessions are **422 SESSION_TOO_SHORT**.
 - `GET /results/<id>` renders the stored server metrics; an unknown id returns **404**. The results template distinguishes unavailable (`—`) from zero and shows `Eu` only when non-zero.
@@ -261,23 +282,30 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 ## Exact Next Task
 
-**Task ID:** P0-D2-01
-**Title:** Database schema and connection
+**Task ID:** P0-D2-02
+**Title:** Repository and persistence
 
 **Scope (from `docs/TASKS.md`):**
-1. Write `app/schema.sql` with the four tables from `docs/ARCHITECTURE.md` §5 (`sessions`, `session_metrics`, `keystroke_events`, `session_key_stats`), including foreign keys, indexes and CHECK constraints.
-2. Implement `app/db.py`: connection factory, `PRAGMA foreign_keys = ON`, `PRAGMA user_version`, and a per-request `g.db` connection.
-3. Add `init_db()` to `create_app()`.
-4. **Acceptance:** the database initialises on first run and the schema matches the blueprint exactly; `pytest` green.
+1. Implement `app/repository.py`: all SQL — INSERT session, INSERT metrics, INSERT events (`executemany`), INSERT key stats (`executemany`), all in a **single transaction**.
+2. Implement GET queries: session by id, session list (paginated), session key stats.
+3. Write `tests/test_repository.py`:
+   - Persistence round-trip (save and retrieve match)
+   - FK cascade (deleting session removes events and metrics)
+   - Rollback on mid-save failure (no partial data)
+   - Paginated list returns correct total and items
+4. Update `POST /api/sessions` to persist to DB.
+5. **Acceptance:** session saved after POST; retrievable by id; rollback works; `pytest` green.
+6. **Commit:** `feat(db): persistence — single-transaction save and round-trip tests` (commits require explicit user approval).
 
 **Starting point:**
-- P0-D1-10 is complete and the full type → submit → results flow works from the in-memory store. `pytest`: **434 passed**.
-- `app/session_store.py` is a deliberate temporary stand-in. P0-D2-02 replaces `InMemorySessionStore` with the repository; keep the `create`/`get` surface in mind when designing the repository API.
-- `SessionAnalysis` already exposes `metrics`, `session_key_stats` (keyed by `key_code`) and `warnings`; persist these rather than recomputing anything in the repository.
-- The raw accepted events are retained only inside `analysis.replay` for this milestone. `StoredSession` in `app/session_store.py` does not keep a separate event list; P0-D2-02 needs the validated `payload.events` in order to insert `keystroke_events`. Extend `StoredSession` or pass `validated` through at that point.
-- Do not move metric logic into routes or SQL; `app/repository.py` owns every statement.
-- `instance/typing.db` is git-ignored. Do not commit it.
-- The timer boundary, validator contract and forbidden client fields remain fixed by ADR-025/ADR-026; do not relax them.
+- P0-D2-01 is complete. `app/db.py` provides `connect()` (`sqlite3.Row`, `PRAGMA foreign_keys = ON`), `apply_schema()` (idempotent, sets `PRAGMA user_version = 1`), `init_db()` already wired into `create_app()`, and `get_db()`/`close_db()` for the per-request `g.db` connection. The repository should build on these; it owns every application SQL statement (ADR-033, architecture rule 4).
+- The full type → submit → results flow works, but storage is still `InMemorySessionStore` in `app/extensions["tba_session_store"]` (ADR-032). P0-D2-02 replaces the store with the repository; keep the `create`/`get` surface in mind when designing the API and update `app/routes/api.py` and `GET /results/<id>` accordingly.
+- `StoredSession` does not keep the validated `payload.events`; the repository needs them (filtered to events up to the derived end, i.e. excluding `dropped_after_end` events, per EVENT_SCHEMA §10) to insert `keystroke_events`. Extend `StoredSession` or pass `validated` through at this point.
+- Engine outputs to persist without recomputation: `analysis.replay` (buffer → `typed_text`, `active_duration_ms`, `end_reason`), `analysis.metrics` (all `session_metrics` columns), `analysis.session_key_stats` (already keyed by `key_code` with blueprint column names). `invalid_dwell_count` and the warning counters belong in `data_quality_json`; `error_rate` is **not** a column (ADR-033). `iki_hist_json` stays NULL (P1).
+- `sessions` row: repository-generated `uuid4().hex` id, UTC `created_at` (same ISO-8601 `Z` format as the store), `text_ref_json`/`client_json` serialisations, `schema_version` from the validated payload, `analysis_version` from `app/config.ANALYSIS_VERSION`, and `layout_hint` from `validated.client["layout_hint"]`.
+- `tests/conftest.py` now points `DATABASE` at `tmp_path/typing.db` for the `app` fixture. For connection-level repository tests, call `apply_schema(connect(":memory:"))`; `tests/test_db.py` shows the available helpers and expected column order.
+- `instance/typing.db` is git-ignored. Do not commit or delete the developer database silently.
+- The timer boundary, validator contract and forbidden client fields remain fixed by ADR-025/ADR-026; do not relax them. All writes for one session stay in a single transaction (`executemany` for events).
 
 ---
 
@@ -290,7 +318,7 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 5. **`docs/UI_DESIGN.md` §7** references `docs/METRICS.md` §6 for the Wilson heuristic; it should be §12. Correct during UI documentation cleanup.
 6. **`README.md`** is absent; leave for P0-D3-05.
 7. **`app/routes/__init__.py`** now exists as the route package docstring; `pages.py` and `api.py` live beside it and are registered in `create_app()`.
-8. **P0-D1-10 is committed** as `40e41dc` (externally). The uncommitted change in the working tree is the development-server fix and its doc sync (`run.py`, `docs/HANDOFF.md`, `docs/TASKS.md`). HEAD is `40e41dc`; do not commit or push without approval.
+8. **P0-D1-10 is committed** as `40e41dc` and the dev-server follow-up as `8a940b4`. The only uncommitted work is P0-D2-01 (schema and connection, ADR-033) and its doc updates; HEAD is `8a940b4` and the branch is in sync with `origin/feature/project-foundation`. Do not commit or push without approval.
 9. **Fixture A's IKI values are null by decision.** The §13 row's mean/SD arithmetic conflicts with §8.5; the author ruled §8.5 wins (ADR-023). Do not "fix" this by restoring `800.0`/`0.0`.
 10. **`session_key_stats` rows are ready for persistence but not yet stored.** P0-D2-02 owns the repository insert; `SessionKeyStat` field names match the blueprint §9 columns exactly.
 11. **Heatmap classification is not yet wired to an endpoint.** `classify_observation()` and `pooled_baseline_error_rate()` are reused by P0-D3-01; do not duplicate the formula in routes or SQL.
@@ -306,6 +334,9 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 21. **`GET /results/<id>` is a temporary server-rendered page.** P0-D2-03 adds `GET /api/sessions/<id>` and the full results API. Reuse `results.html` rather than creating a second results surface.
 22. **`invalid_dwell_count` is part of `SessionMetrics`.** Keep it in sync with the `invalid_dwell` warning (`count > 0` emits the warning). Do not re-derive it in routes.
 23. **The development server runs without the reloader.** `run.py` calls `app.run(host="127.0.0.1", port=5000, debug=True, use_reloader=False)`. Do not reintroduce the reloader, and do not launch the server through a detached shell; `Ctrl+C` in the starting terminal is the supported stop.
+24. **`session_metrics` has no `error_rate` and no `invalid_dwell_count` column** (ADR-033); the blueprint §9 column list is complete. P0-D2-02 must serialise `invalid_dwell_count` and the warning counters into `data_quality_json`, and leave `error_rate` derivable from `accuracy_pct`. Do not widen the schema for them.
+25. **Schema matches blueprint §9 verbatim, with SQLite-specific CHECK nuances** (ADR-033): `sessions.duration_limit_ms` must be 15000/30000/60000 for `time` and NULL for `passage`; the constraint carries an explicit `IS NOT NULL` because SQLite treats a NULL CHECK result as passing. `PRAGMA user_version` is 1; there is no migration path — a mismatched non-zero version aborts startup with the documented remedy (delete `instance/typing.db` during development).
+26. **Test apps never touch the developer database.** The `app` fixture in `tests/conftest.py` passes `DATABASE` inside `tmp_path` via `create_app(test_config)`; keep this isolation for all future persistence work.
 
 ---
 

@@ -2,6 +2,7 @@
 
 import sqlite3
 from collections.abc import Iterator
+from pathlib import Path
 
 import pytest
 from flask import Flask
@@ -11,10 +12,14 @@ from app import create_app
 
 
 @pytest.fixture()
-def app() -> Iterator[Flask]:
-    """Create a Flask application configured for testing."""
-    application = create_app()
-    application.config.update(TESTING=True)
+def app(tmp_path: Path) -> Iterator[Flask]:
+    """Create a Flask application with an isolated temporary database."""
+    application = create_app(
+        {
+            "TESTING": True,
+            "DATABASE": str(tmp_path / "typing.db"),
+        }
+    )
     yield application
 
 
