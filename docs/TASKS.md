@@ -203,13 +203,16 @@
 - **Commit (deferred):** `feat(test): polish typing screen caret and state messages` — not performed; commits require explicit approval
 
 ### P0-D2-06: Progress endpoint and analytics charts
-- [ ] Implement `GET /api/analytics/progress?scope=` returning sessions with `net_wpm`, `accuracy_pct`, moving average
-- [ ] Implement `app/templates/analytics.html` and `app/static/js/analytics-page.js`
-- [ ] WPM and accuracy charts (stacked pair, shared x-axis, 5-session moving average)
-- [ ] Charts are theme-aware (re-read tokens on `tba:themechange`)
-- [ ] `app/static/js/charts.js` (Chart.js wrappers, theme helpers)
-- [ ] Empty state: no fake data
-- [ ] **Acceptance:** charts render; theme switch recolours without page reload
+> **Status (2026-11-14):** Complete — progress API (ADR-037), `/analytics` page, theme-aware WPM/accuracy charts.
+- [x] Implement `GET /api/analytics/progress?scope=` returning sessions with `net_wpm`, `accuracy_pct`, moving average
+- [x] Implement `app/templates/analytics.html` and `app/static/js/analytics-page.js`
+- [x] WPM and accuracy charts (stacked pair, shared x-axis, 5-session moving average)
+- [x] Charts are theme-aware (re-read tokens on `tba:themechange`)
+- [x] `app/static/js/charts.js` (Chart.js wrappers, theme helpers)
+- [x] Empty state: no fake data
+- [x] **Acceptance:** charts render; theme switch recolours without page reload. `pytest tests/ -q`: **507 passed**; Chromium verified charts with 7 stored sessions, the scope toggle, theme recolouring without reload, the empty state and nav.
+- [x] **Files touched:** `app/config.py`, `app/engine/metrics.py`, `app/repository.py`, `app/routes/api.py`, `app/routes/pages.py`, `app/templates/base.html`, `app/templates/analytics.html`, `app/static/js/analytics-page.js`, `app/static/js/charts.js`, `app/static/css/components.css`, `tests/test_analytics.py` (new), `tests/test_repository.py`, `tests/test_metrics.py`, `tests/test_infrastructure.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- **Commit (deferred):** `feat(analytics): progress endpoint and theme-aware charts` — not performed; commits require explicit approval (ADR-037 explains the series contract and resolves AMB-004).
 
 ### P0-D2-07: sessions.csv export
 - [ ] Implement `app/exporters.py`: UTF-8 BOM CSV; injection guard (`= + - @` get leading `'`); fixed columns in blueprint order

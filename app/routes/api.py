@@ -21,6 +21,9 @@ from flask import Blueprint, Response, current_app, jsonify, request, url_for
 from ..config import (
     HISTORY_PAGE_SIZE,
     MAX_SESSION_BODY_BYTES,
+    PROGRESS_DEFAULT_SCOPE,
+    PROGRESS_MOVING_AVERAGE_WINDOW,
+    PROGRESS_SCOPES,
     SESSION_LIST_MAX_LIMIT,
     SESSION_MIN_K,
     SESSION_MIN_T_MS,
@@ -28,6 +31,7 @@ from ..config import (
     WORD_COUNT_MIN,
 )
 from ..engine import analyze_session
+from ..engine.metrics import trailing_moving_average
 from ..engine.replay import END_COMPLETED, InvalidEventSequence
 from ..errors import (
     INCOMPLETE_SESSION,
@@ -90,6 +94,16 @@ def _invalid_pagination(field: str, problem: str) -> tuple[Response, int]:
         VALIDATION_ERROR,
         "A pagination query parameter is invalid.",
         [{"field": field, "problem": problem}],
+        status=422,
+    )
+
+
+def _invalid_scope(problem: str) -> tuple[Response, int]:
+    """Return the documented validation error for the progress scope."""
+    return json_error(
+        VALIDATION_ERROR,
+        "The scope query parameter is invalid.",
+        [{"field": "scope", "problem": problem}],
         status=422,
     )
 
@@ -366,6 +380,46 @@ def list_sessions() -> Response | tuple[Response, int]:
         {
             "items": [asdict(item) for item in items],
             "total": total,
+        }
+    )
+
+
+@api_bp.get("/analytics/progress")
+def get_progress() -> Response | tuple[Response, int]:
+    """Return the stored WPM/accuracy series and its moving average.
+
+    The repository selects the scoped rows; the engine computes the trailing
+    average. The route only validates the scope and shapes the response.
+    """
+    raw_scope = request.args.get("scope", PROGRESS_DEFAULT_SCOPE)
+    if raw_scope not in PROGRESS_SCOPES:
+        return _invalid_scope(
+            f"must be one of {', '.join(PROGRESS_SCOPES)}"
+        )
+
+    repository: SessionRepository = current_app.extensions[STORE_EXTENSION_KEY]
+    points = repository.list_progress(PROGRESS_SCOPES[raw_scope])
+    net_average = trailing_moving_average(
+        [point.net_wpm for point in points],
+        PROGRESS_MOVING_AVERAGE_WINDOW,
+    )
+    accuracy_average = trailing_moving_average(
+        [point.accuracy_pct for point in points],
+        PROGRESS_MOVING_AVERAGE_WINDOW,
+    )
+
+    sessions: list[dict[str, Any]] = []
+    for index, point in enumerate(points):
+        item = asdict(point)
+        item["moving_average_net_wpm"] = net_average[index]
+        item["moving_average_accuracy_pct"] = accuracy_average[index]
+        sessions.append(item)
+
+    return jsonify(
+        {
+            "scope": raw_scope,
+            "window": PROGRESS_MOVING_AVERAGE_WINDOW,
+            "sessions": sessions,
         }
     )
 

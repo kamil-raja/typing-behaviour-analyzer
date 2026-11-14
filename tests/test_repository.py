@@ -372,3 +372,32 @@ def test_paginated_list_returns_total_and_items(
     assert latest.net_wpm == analysis.metrics.net_wpm
     assert latest.accuracy_pct == 100.0
     assert latest.consistency_score == analysis.metrics.consistency_score
+
+
+# --- Progress series -------------------------------------------------------
+
+
+def test_progress_series_is_chronological_and_limited(
+    repository: SessionRepository,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Progress points run oldest first and keep only the newest ``limit``."""
+    stamps = iter(f"2026-11-09T10:00:0{index}.000Z" for index in range(3))
+    monkeypatch.setattr(repository_module, "_utc_now_iso", lambda: next(stamps))
+
+    payload = _payload(_events(TEXT[:4], final_up=False))
+    analysis = _analysis_with(payload)
+    ids = [repository.create(payload, analysis).session_id for _ in range(3)]
+
+    points = repository.list_progress(None)
+    assert [point.session_id for point in points] == ids
+    assert [point.created_at for point in points] == [
+        "2026-11-09T10:00:00.000Z",
+        "2026-11-09T10:00:01.000Z",
+        "2026-11-09T10:00:02.000Z",
+    ]
+    assert points[0].net_wpm == analysis.metrics.net_wpm
+    assert points[0].accuracy_pct == analysis.metrics.accuracy_pct
+
+    limited = repository.list_progress(2)
+    assert [point.session_id for point in limited] == ids[-2:]

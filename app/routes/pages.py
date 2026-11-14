@@ -7,7 +7,12 @@ the JSON API; the results page reads the persisted session record created by
 
 from flask import Blueprint, abort, current_app, render_template
 
-from ..config import HISTORY_PAGE_SIZE, WORDS_FOR_DURATION_MS
+from ..config import (
+    HISTORY_PAGE_SIZE,
+    PROGRESS_DEFAULT_SCOPE,
+    PROGRESS_MOVING_AVERAGE_WINDOW,
+    WORDS_FOR_DURATION_MS,
+)
 from ..repository import STORE_EXTENSION_KEY, SessionRecord, SessionRepository
 
 pages_bp = Blueprint("pages", __name__)
@@ -23,6 +28,16 @@ def test_page() -> str:
 def history_page() -> str:
     """Render the paginated session history screen."""
     return render_template("history.html", page_size=HISTORY_PAGE_SIZE)
+
+
+@pages_bp.get("/analytics")
+def analytics_page() -> str:
+    """Render the progress charts screen."""
+    return render_template(
+        "analytics.html",
+        default_scope=PROGRESS_DEFAULT_SCOPE,
+        window=PROGRESS_MOVING_AVERAGE_WINDOW,
+    )
 
 
 @pages_bp.get("/results/<session_id>")

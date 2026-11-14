@@ -140,6 +140,18 @@ class SessionSummary:
     consistency_score: float | None
 
 
+@dataclass(frozen=True)
+class ProgressPoint:
+    """One chronological point of the progress series (oldest first)."""
+
+    session_id: str
+    created_at: str
+    mode: str
+    duration_limit_ms: int | None
+    net_wpm: float | None
+    accuracy_pct: float | None
+
+
 def _utc_now_iso() -> str:
     """Return the current UTC time as an ISO-8601 string with a ``Z`` suffix."""
     return (
@@ -468,6 +480,37 @@ class SessionRepository:
                 for row in rows
             ]
             return summaries, total
+        finally:
+            connection.close()
+
+    def list_progress(self, limit: int | None) -> list[ProgressPoint]:
+        """Return the most recent ``limit`` sessions for the progress charts.
+
+        Rows come back oldest first so the chart's x axis runs forward in time.
+        The newest rows are selected in SQL, then reversed; ``None`` means all
+        sessions (SQLite's ``LIMIT -1``).
+        """
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT s.id, s.created_at, s.mode, s.duration_limit_ms, "
+                "m.net_wpm, m.accuracy_pct "
+                "FROM sessions s "
+                "JOIN session_metrics m ON m.session_id = s.id "
+                "ORDER BY s.created_at DESC, s.id DESC LIMIT ?",
+                (-1 if limit is None else limit,),
+            ).fetchall()
+            return [
+                ProgressPoint(
+                    session_id=row["id"],
+                    created_at=row["created_at"],
+                    mode=row["mode"],
+                    duration_limit_ms=row["duration_limit_ms"],
+                    net_wpm=row["net_wpm"],
+                    accuracy_pct=row["accuracy_pct"],
+                )
+                for row in reversed(rows)
+            ]
         finally:
             connection.close()
 

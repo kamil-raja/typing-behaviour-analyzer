@@ -46,6 +46,11 @@ WORD_COUNT_MAX = 400
 HISTORY_PAGE_SIZE = 25
 SESSION_LIST_MAX_LIMIT = 100
 
+# Progress analytics (blueprint §10, docs/UI_DESIGN.md §6).
+PROGRESS_SCOPES = {"last_10": 10, "last_30": 30, "all": None}
+PROGRESS_DEFAULT_SCOPE = "all"
+PROGRESS_MOVING_AVERAGE_WINDOW = 5
+
 # Word-mode text sizing (TBA blueprint §4.2). Time-mode texts are padded so early
 # completion is practically unreachable while the completion rule stays defined.
 WORDS_FOR_DURATION_MS = {

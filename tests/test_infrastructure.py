@@ -66,6 +66,8 @@ def test_frontend_assets_resolve(client: FlaskClient) -> None:
         "/static/js/test-page.js",
         "/static/js/results-page.js",
         "/static/js/history-page.js",
+        "/static/js/analytics-page.js",
+        "/static/js/charts.js",
         "/static/fonts/OFL-Lexend.txt",
         "/static/fonts/OFL-JetBrainsMono.txt",
     ]

@@ -420,6 +420,19 @@ P0-D1-05 will map expected characters through `CHAR_TO_CODE` and merge the two m
 - `base.html` now resolves the history nav entry with `url_for('pages.history_page')` per ADR-028; the rendered path stays `/history`.
 **Consequences:** The list API, page and results page agree on the summary shape. Pagination is bounded server-side, so a client cannot request an unbounded page. Any future page size change is a single constant edit, and adding columns to the list is an additive `SessionSummary` change.
 
+### ADR-037: Progress series contract and theme-aware analytics charts
+**Date:** 2026-11-14
+**Status:** Approved
+**Context:** Blueprint §10 fixes `GET /api/analytics/progress?scope=` only as "sessions with `net_wpm`, `accuracy_pct`, and a moving average" with `scope ∈ last_10, last_30, all`. `docs/UI_DESIGN.md` §6 adds a scope toggle, a stacked WPM/accuracy pair with a shared x axis and a 5-session moving average, and theme re-rendering on `tba:themechange`. The response shape, ordering, default scope and null handling are unspecified, and AMB-004 leaves the early-window behaviour open.
+**Decision:**
+- The endpoint returns `{ "scope": ..., "window": 5, "sessions": [...] }`. Each session carries `session_id`, `created_at`, `mode`, `duration_limit_ms`, `net_wpm`, `accuracy_pct`, `moving_average_net_wpm` and `moving_average_accuracy_pct`.
+- `scope` defaults to `all`. Only `last_10`, `last_30` and `all` are accepted, compared exactly; any other value (including an empty string) returns `422 VALIDATION_ERROR` with `field: "scope"`, matching the existing query-parameter convention.
+- `SessionRepository.list_progress(limit)` selects the newest `10`/`30`/all rows ordered by `created_at DESC, id DESC` and returns them oldest first, so the chart runs forward in time while the scope still means "most recent N".
+- The moving average is a trailing window of `PROGRESS_MOVING_AVERAGE_WINDOW = 5` positions, expanding for the first 1–4 points (AMB-004). The window never crosses the scope boundary. `engine.metrics.trailing_moving_average()` computes it from stored values; `None` values are skipped rather than treated as zero and a point with no non-null value in its window stays `None`. This is an analytics aggregate, not a new stored session metric.
+- `/analytics` is a thin server-rendered shell with the three scope buttons, the two canvas containers, the "what to look for" line per chart and the empty state. `analytics-page.js` fetches the series and formats labels/values only; `charts.js` wraps Chart.js, reads CSS tokens and recolours every chart with `chart.update("none")` on `tba:themechange`. Existing chart instances are destroyed before a scope re-render.
+- Empty history shows "No sessions yet." and no chart is created. Null series values stay gaps (`spanGaps: false`), not zeroes.
+**Consequences:** AMB-004 is resolved. The page and API agree on one series shape, no schema change is needed, and the browser remains free of metric math. Adding the P1 IKI histogram is an additive endpoint/page section.
+
 ---
 
 ## Open Ambiguities
@@ -449,6 +462,7 @@ P0-D1-05 will map expected characters through `CHAR_TO_CODE` and merge the two m
 
 ### AMB-004: Moving average in progress chart — window or cumulative?
 **Date:** 2026-11-06
-**Status:** Open
+**Status:** Resolved by ADR-037 (2026-11-14)
 **Context:** The blueprint says "5-session moving average" but does not specify whether this is a trailing window average or an expanding average for early sessions (fewer than 5).
 **Decision:** Use a **trailing window** of 5 sessions. For the first 1–4 sessions, use all available sessions (expanding window). This is the conventional interpretation. Log here if changed.
+**Resolution:** Implemented in `engine.metrics.trailing_moving_average()` with the window scoped to the selected sessions; see ADR-037.

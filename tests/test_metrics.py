@@ -28,6 +28,7 @@ from app.engine.metrics import (
     is_pause,
     is_valid_dwell,
     is_valid_interval,
+    trailing_moving_average,
     valid_intervals,
 )
 from app.engine.replay import ReplayResult, replay_events
@@ -413,6 +414,22 @@ def test_backspace_only_difference_does_not_change_gross_wpm() -> None:
     assert plain.gross_wpm == pytest.approx(deleted.gross_wpm)
     assert deleted.backspace_count == 1
     assert deleted.final_length == plain.final_length - 1
+
+
+def test_trailing_moving_average_skips_nulls_and_expands_early() -> None:
+    """Early points use available values; nulls are skipped, not zeroed."""
+    assert trailing_moving_average([], 5) == []
+    assert trailing_moving_average([10.0, None, 30.0, 40.0, 50.0, 60.0, 70.0], 5) == [
+        10.0,
+        10.0,
+        20.0,
+        80.0 / 3.0,
+        32.5,
+        45.0,
+        50.0,
+    ]
+    with pytest.raises(ValueError):
+        trailing_moving_average([1.0], 0)
 
 
 def test_accuracy_guards_when_there_are_no_keystrokes() -> None:

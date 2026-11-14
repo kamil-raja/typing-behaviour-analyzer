@@ -52,12 +52,41 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 | Field | Value |
 |---|---|
 | **Branch** | `database-version` (in sync with `origin/database-version`) |
-| **Status** | Uncommitted P0-D2-05 work: modified `app/static/js/typing-engine.js`, `app/routes/api.py`, `tests/test_sessions.py`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`; new `tests/test_typing_screen.py` |
-| **Last commit** | `3ee469a feat(history): add paginated session history page` (P0-D2-04) |
+| **Status** | Uncommitted P0-D2-06 work: modified `app/config.py`, `app/engine/metrics.py`, `app/repository.py`, `app/routes/api.py`, `app/routes/pages.py`, `app/templates/base.html`, `app/static/css/components.css`, `tests/test_metrics.py`, `tests/test_repository.py`, `tests/test_infrastructure.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`; new `app/templates/analytics.html`, `app/static/js/analytics-page.js`, `app/static/js/charts.js`, `tests/test_analytics.py` |
+| **Last commit** | `e0d6d7d feat(typing): polish typing screen interactions` (P0-D2-05) |
 | **Tags** | None yet |
-| **Commit/push** | **None performed by this agent.** P0-D1-01–P0-D1-10 were committed as `9c02975`, `147ec1e`, `e9e2215`, `61d8c36`, `55130e1`, `1c0137a`, `4599be0`, `3cc8a56`, `20864ab`, `40e41dc`; the dev-server fix as `8a940b4`; P0-D2-01 as `8b1e811`; P0-D2-02 as `4992846`; P0-D2-03 as `661200f`; P0-D2-04 as `3ee469a` (all committed externally). This agent composes working-tree changes only. |
+| **Commit/push** | **None performed by this agent.** P0-D1-01–P0-D1-10 were committed as `9c02975`, `147ec1e`, `e9e2215`, `61d8c36`, `55130e1`, `1c0137a`, `4599be0`, `3cc8a56`, `20864ab`, `40e41dc`; the dev-server fix as `8a940b4`; P0-D2-01 as `8b1e811`; P0-D2-02 as `4992846`; P0-D2-03 as `661200f`; P0-D2-04 as `3ee469a`; P0-D2-05 as `e0d6d7d` (all committed externally). This agent composes working-tree changes only. |
 
 `.venv/`, `__pycache__/`, and `instance/` (including `instance/typing.db` created by the first-run check) are ignored and are not part of the working-tree changes.
+
+### Completed This Session — P0-D2-06 Progress endpoint and analytics charts
+
+| File | Purpose |
+|---|---|
+| `app/config.py` | `PROGRESS_SCOPES = {"last_10": 10, "last_30": 30, "all": None}`, `PROGRESS_DEFAULT_SCOPE = "all"`, `PROGRESS_MOVING_AVERAGE_WINDOW = 5` |
+| `app/engine/metrics.py` | `trailing_moving_average(values, window)`: trailing window, expanding for early points, nulls skipped |
+| `app/repository.py` | `ProgressPoint` and `list_progress(limit)`: newest N rows by `created_at DESC, id DESC`, returned oldest first; still the only SQL owner |
+| `app/routes/api.py` | `GET /api/analytics/progress?scope=` returns `{scope, window, sessions}`; invalid scopes are `422 VALIDATION_ERROR` with `field: "scope"`; no SQL and no metric formula in the route |
+| `app/routes/pages.py` | `GET /analytics` renders `analytics.html` with the default scope and moving-average window |
+| `app/templates/analytics.html` | Scope toggle, two chart sections with "what to look for" lines, `No sessions yet.` empty state, canvas labels, vendor + module scripts |
+| `app/static/js/analytics-page.js` | Fetches one scope at a time, formats dates/values, switches scope, destroys old charts, handles empty/error states, applies theme updates |
+| `app/static/js/charts.js` | Chart.js wrappers: token palette, line datasets, null gaps, tooltip formatting, `applyChartTheme()` with `chart.update("none")` |
+| `app/static/css/components.css` | Analytics layout, scope button pressed state, chart heights, status/copy styles; tokens only |
+| `app/templates/base.html` | `analytics` nav entry now uses `url_for('pages.analytics_page')` |
+| `tests/test_analytics.py` | 12 cases: empty history, five invalid scopes, chronological series with hand-computed averages, scope limits/default, null metrics, newly persisted session, page markup/nav, asset/JS contracts |
+| `tests/test_repository.py` | Added `list_progress` chronology and limit test |
+| `tests/test_metrics.py` | Added `trailing_moving_average` null/window/guard test |
+| `tests/test_infrastructure.py` | Static asset list includes `analytics-page.js` and `charts.js` |
+| `docs/DECISIONS.md` | ADR-037 (series contract, scope validation, ordering, null handling, page ownership) and AMB-004 resolved |
+
+- **Response contract:** `{ "scope": "all", "window": 5, "sessions": [{ session_id, created_at, mode, duration_limit_ms, net_wpm, accuracy_pct, moving_average_net_wpm, moving_average_accuracy_pct }] }`. Sessions are oldest first. `scope` defaults to `all`; only `last_10`, `last_30` and `all` are accepted.
+- **Moving average:** trailing five displayed points, expanding for the first 1–4 points; `None` values are skipped and a window with no non-null value stays `None`. It is computed by the engine, never by the browser.
+- **Charts:** both charts share the same session labels. The stored series is a solid accent line; the moving average is dashed and muted. Accuracy is pinned to 0–100, WPM starts at zero, nulls are gaps (`spanGaps: false`), and tooltips show one decimal plus the unit. Chart instances are destroyed before each scope re-render.
+- **Theme:** `charts.js` reads `--accent`, `--text`, `--text-muted`, `--border`, `--surface` and `--font-mono` through `getComputedStyle`; `tba:themechange` triggers `applyChartTheme()` which calls `chart.update("none")` without reloading the page.
+- **Empty state:** no chart is constructed; the page shows the documented `No sessions yet.` copy with a Take a test link.
+- **Browser verification:** against 7 seeded sessions, both charts rendered all seven values and the server averages; `last 10` switched correctly and left exactly two chart instances; the theme toggle recoloured the series from dark `#e28ab2` to light `#8e2949` on the same document; an empty database showed the empty state with zero charts; the in-app `analytics` nav link reached `/analytics`; no console errors (only the pre-existing `/favicon.ico` 404).
+- `pytest tests/ -q`: **507 passed** (493 previous + 14 new).
+- **P0-D2-06 is complete.**
 
 ### Completed This Session — P0-D2-05 Typing screen polish
 
@@ -367,11 +396,12 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 ### Verification
 
-- `python -m pytest tests\ -q`: **493 passed** (8 fixture checks, 4 infrastructure/frontend checks, 18 API/page cases, 24 replay tests, 57 metric tests, 33 key tests, 190 validator cases, 76 text-resolution cases, 41 session/results/history cases, 25 schema/connection cases, 10 repository tests, 7 typing-screen contracts). The session cases cover detail, history pagination, tooltips, data quality and conditional `Eu`.
+- `python -m pytest tests\ -q`: **507 passed** (8 fixture checks, 4 infrastructure/frontend checks, 18 API/page cases, 24 replay tests, 58 metric tests, 33 key tests, 190 validator cases, 76 text-resolution cases, 41 session/results/history cases, 12 analytics cases, 25 schema/connection cases, 11 repository tests, 7 typing-screen contracts). The session cases cover detail, history pagination, tooltips, data quality and conditional `Eu`; the analytics cases cover the progress series and chart contracts.
 - `GET /` returns **200** and renders `test.html`. `GET /api/texts/passages`, `/api/texts/passages/p_001` and `/api/texts/words?count=200` all return **200** with the ADR-029 shapes; unknown passages return **404 TEXT_NOT_FOUND**; invalid counts return **422 VALIDATION_ERROR** with `field: "count"`.
 - `POST /api/sessions` returns **201** with the documented `{session_id, metrics, warnings, links}` shape; malformed JSON is **400 INVALID_JSON**, schema failures are **422 VALIDATION_ERROR**, oversized bodies are **413 PAYLOAD_TOO_LARGE**, unknown passages are **404 TEXT_NOT_FOUND**, invalid sequences are **422 INVALID_EVENT_SEQUENCE**, incomplete passages are **422 INCOMPLETE_SESSION**, and short sessions are **422 SESSION_TOO_SHORT**.
 - `GET /api/sessions/<id>` returns **200** with `{ session, metrics, key_stats }` (ADR-035); an unknown id returns **404 NOT_FOUND** with `field: "session_id"`. The route reads only through `SessionRepository.get()`/`get_key_stats()`.
 - `GET /api/sessions?limit=&offset=` returns **200** with `{ items, total }` (ADR-036); `limit` defaults to 25 and accepts 1–100, `offset` defaults to 0; invalid values return **422 VALIDATION_ERROR** with `field` `limit` or `offset`. `GET /history` returns **200**, renders the six-column table shell, the empty state text and the pagination controls, and loads `js/history-page.js`. Chromium check against 30 seeded sessions: 25 rows on page 1, 5 on page 2, correct disabled states, row click opens `/results/<id>`.
+- `GET /api/analytics/progress?scope=` returns **200** with `{ scope, window, sessions }` (ADR-037). Sessions are oldest first and carry both stored values and the server-computed moving averages. `scope` defaults to `all`; `last_10`, `last_30` and `all` are accepted; anything else is **422 VALIDATION_ERROR** with `field: "scope"`. `GET /analytics` returns **200**, renders the scope toggle, both chart sections, the "what to look for" lines, the vendor Chart.js script and `js/analytics-page.js`; the in-app Chromium check against 7 seeded sessions showed both charts, scope switching, theme recolouring without reload, the empty state and navigation, with no console errors.
 - `GET /` renders the polished typing screen: config strip (mode/time/passage), live row `hidden` with the `provisional` badge, three-line viewport with `tabindex="0"` and the documented `aria-label`, and the `esc restart` footer. Character states are token-based and `test.css` has no hex colours. The caret is line-box anchored; in the in-app Chromium tab its final geometry was `38.5–77 px` inside the `115.5 px` window (visible line 2) at 90, 120, 150, 180 and 200 typed characters. A wrong full passage shows `Fix the highlighted characters to finish`, Backspace clears it, Esc returns to idle, and a 15 s time-up with three keystrokes shows `Too short to save.` (422, nothing saved). A synthetic `blur` during a run shows `Test cancelled. The window lost focus.` and the next keystroke starts a fresh attempt. Native desktop keystrokes could not be injected (window not visible), so this was DOM-event verification.
 - `GET /results/<id>` renders the persisted server metrics from `SessionRecord`; an unknown id returns **404**. The results template distinguishes unavailable (`—`) from zero, shows `Eu` only when non-zero, and shows the Data quality section only when warnings exist or `zero_interval_count > 0`. Every metric label carries an accessible `?` tooltip (`button[data-metric-help]` + `role="tooltip"`), wired by `app/static/js/results-page.js`.
 - `POST /api/sessions` saves all four table shapes in one transaction and the 201 response is serialised from the persisted record (`SessionRepository.get()`), so response, page and database hold identical numbers. A mid-save failure leaves the database untouched (rollback test).
@@ -381,31 +411,28 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 - `app/routes/api.py` contains no metric math and no SQL; it delegates every text lookup/generation to `app/texts.py`.
 - `app/static/js/results-page.js` contains no fetching and no metric math; it only manages tooltip ARIA state and dismissal. The page stays server-rendered from the persisted record.
 - `app/static/js/history-page.js` fetches the list API and formats stored values only (date locale, unit suffixes, one-decimal rounding); it computes no metric. `app/routes/api.py` contains no SQL for the list either — it delegates to `SessionRepository.list_sessions()`.
-- `tests/` now contains the conftest, seven golden JSON fixtures, fixture checks, replay tests, metric tests, key-map/classification tests, validator tests, text-resolution tests, API/page tests, session/history tests and the frontend smoke checks.
+- `app/static/js/analytics-page.js` fetches the progress API and formats labels/values only; `app/static/js/charts.js` maps those values onto Chart.js. Neither computes a metric or a moving average, and `app/routes/api.py` delegates the series to `SessionRepository.list_progress()` and the averages to `engine.metrics.trailing_moving_average()`.
+- `tests/` now contains the conftest, seven golden JSON fixtures, fixture checks, replay tests, metric tests, key-map/classification tests, validator tests, text-resolution tests, API/page tests, session/history/analytics tests and the frontend smoke checks.
 - No compatibility issues with Python 3.14.7.
 
 ---
 
 ## Exact Next Task
 
-**Task ID:** P0-D2-06
-**Title:** Progress endpoint and analytics charts
+**Task ID:** P0-D2-07
+**Title:** `sessions.csv` export
 
 **Scope (from `docs/TASKS.md`):**
-1. Implement `GET /api/analytics/progress?scope=` returning sessions with `net_wpm`, `accuracy_pct`, moving average.
-2. Implement `app/templates/analytics.html` and `app/static/js/analytics-page.js`.
-3. WPM and accuracy charts (stacked pair, shared x-axis, 5-session moving average).
-4. Charts are theme-aware (re-read tokens on `tba:themechange`).
-5. `app/static/js/charts.js` (Chart.js wrappers, theme helpers).
-6. Empty state: no fake data.
-7. **Acceptance:** charts render; theme switch recolours without page reload.
+1. Implement `app/exporters.py`: UTF-8 BOM CSV; injection guard (`= + - @` get a leading `'`); fixed columns in blueprint §10 order.
+2. Implement `GET /api/export/sessions.csv`.
+3. Write `tests/test_exports.py`: BOM present, injection guard, null metrics as empty cells, fixed column order.
+4. **Acceptance:** export downloads correctly; BOM present; injection safe; `pytest` green.
 
 **Starting point:**
-- P0-D2-05 is complete: the typing screen matches `docs/UI_DESIGN.md` §4 and the too-short copy is "Too short to save.".
-- Chart.js 4.4.7 is vendored at `app/static/vendor/chart.umd.min.js` and is not referenced by any template yet. Add it only on the analytics page.
-- `app/repository.py` remains the single SQL owner; routes stay free of SQL and metric math. The progress series must be read from stored sessions, never recomputed in JS.
-- `GET /api/sessions?limit=&offset=` and `SessionRepository.list_sessions()` already return newest-first summaries; scope filtering and the moving average still need documented decisions.
-- `pytest tests/ -q`: **493 passed**.
+- P0-D2-06 is complete: `GET /api/analytics/progress?scope=` and `/analytics` are live; `pytest tests/ -q`: **507 passed**.
+- Chart.js 4.4.7 is vendored and is loaded only by `analytics.html`.
+- `app/repository.py` remains the single SQL owner; routes stay free of SQL and metric math. The export needs a repository read that includes `gross_wpm`, `final_accuracy_pct` and the keystroke counts, which `SessionSummary` does not currently carry — extend the repository read shape rather than joining tables in the route.
+- The blueprint §10 column order is fixed: `session_id, created_at, mode, duration_limit_ms, active_duration_ms, end_reason, gross_wpm, net_wpm, accuracy_pct, final_accuracy_pct, total_keystrokes, correct_keystrokes, incorrect_keystrokes, backspace_count`. Null metrics export as empty cells.
 - Do not commit or push without approval.
 
 ---
@@ -419,12 +446,12 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 5. **`docs/UI_DESIGN.md` §7** references `docs/METRICS.md` §6 for the Wilson heuristic; it should be §12. Correct during UI documentation cleanup.
 6. **`README.md`** is absent; leave for P0-D3-05.
 7. **`app/routes/__init__.py`** now exists as the route package docstring; `pages.py` and `api.py` live beside it and are registered in `create_app()`.
-8. **HEAD is `3ee469a feat(history): add paginated session history page`** (P0-D2-04) on `database-version`, in sync with `origin/database-version`. The only uncommitted work is the complete P0-D2-05 (typing-screen polish) and its doc updates. Do not commit or push without approval.
+8. **HEAD is `e0d6d7d feat(typing): polish typing screen interactions`** (P0-D2-05) on `database-version`, in sync with `origin/database-version`. The only uncommitted work is the complete P0-D2-06 (progress endpoint and analytics charts) and its doc updates. Do not commit or push without approval.
 9. **Fixture A's IKI values are null by decision.** The §13 row's mean/SD arithmetic conflicts with §8.5; the author ruled §8.5 wins (ADR-023). Do not "fix" this by restoring `800.0`/`0.0`.
 10. **`session_key_stats` rows are now stored** with every session (`executemany` in the same transaction as the session row, ADR-034); `get_key_stats(id)` reads them back ordered by key code.
 11. **Heatmap classification is not yet wired to an endpoint.** `classify_observation()` and `pooled_baseline_error_rate()` are reused by P0-D3-01; do not duplicate the formula in routes or SQL.
-12. **`/` and `/history` are live; `analytics` and `keyboard` still 404.** Those routes belong to later tasks, so their literal nav paths remain deliberate (ADR-028). Replace them with `url_for` as each page endpoint lands; `/history` already does.
-13. **Chart.js is vendored but not referenced by any template yet.** It stays unused until the analytics/chart pages (P0-D2-06); do not add it to `base.html`.
+12. **`/`, `/history` and `/analytics` are live; `keyboard` still 404s.** Its literal nav path is deliberate until the P0-D3-02 page endpoint lands (ADR-028); then switch that entry to `url_for`. `/history` and `/analytics` already do.
+13. **Chart.js is vendored and loaded only by `analytics.html`.** Do not add it to `base.html`; the other pages have no charts.
 14. **Only the latin font subsets are vendored.** All app content is ASCII 32–126. Out-of-subset glyphs use the documented fallback stacks; add subsets only with a new ADR and the corresponding licence/version note.
 15. **The inline theme script and `theme.js` deliberately split responsibilities.** First paint belongs to the inline script; later toggles belong to `theme.js`. Do not move the storage read into the module, or a reload will flash the wrong theme.
 16. **Accepted-event accumulation lives in `capture.js`.** It records only events the engine accepts and assigns `seq` at record time. Do not reconstruct rejected events or rederive pending state in the route.
@@ -443,6 +470,7 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 29. **The caret is anchored to the text line box, not to `span.offsetTop` directly.** Inline spans report their content-box top, which sits inside the taller line box; using it made the 2 px caret sit low and overhang the next line. `updateCaret()` derives `lineIndex` from `(span.offsetTop − spans[0].offsetTop) / lineHeight` and sets the caret top to `lineIndex × lineHeight`. `tests/test_typing_screen.py` pins this contract; do not "simplify" it back to `translate(x, offsetTop)`.
 30. **The too-short message is server-owned UI copy.** `POST /api/sessions` returns `"Too short to save."` for `SESSION_TOO_SHORT`, matching `docs/UI_DESIGN.md` §4; the client displays the server message verbatim. Do not add a second copy in `test-page.js`.
 31. **Native-keyboard verification for the typing screen was not possible in P0-D2-05.** The desktop browser window could not receive real keystrokes, so keyboard states were exercised with DOM `KeyboardEvent`s and the focus-loss path with a synthetic `blur`. Re-run the §14.3 manual checklist with a physical keyboard in P0-D3-04, including Tab/Shift+Tab, held keys, AltGr and the caret line position while scrolling.
+32. **Progress moving averages are server-owned (ADR-037).** `engine.metrics.trailing_moving_average()` is the only implementation: a trailing five-point window inside the selected scope, expanding for the first four points and skipping nulls. `analytics-page.js` must never recompute them. Churn is deliberate: destroy the Chart.js instances before a scope re-render, and update colours through `applyChartTheme()` / `chart.update("none")` on `tba:themechange` rather than re-fetching data.
 
 ---
 
