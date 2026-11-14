@@ -42,6 +42,11 @@
   color: var(--accent);
 }
 
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 /* Results page */
 .page-results .site-main {
   padding-block: var(--space-4) var(--space-6);
@@ -176,6 +181,12 @@
   font-size: var(--font-size-xs);
 }
 
+.metric-help-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
 .metric-help {
   display: inline-flex;
   align-items: center;
@@ -192,9 +203,39 @@
 }
 
 .metric-help:hover,
-.metric-help:focus-visible {
+.metric-help:focus-visible,
+.metric-help[aria-expanded="true"] {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+.metric-tooltip {
+  position: absolute;
+  top: calc(100% + var(--space-half));
+  left: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: min(34ch, 80vw);
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-base);
+  text-align: left;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--motion-fast) ease;
+}
+
+.metric-help-wrap:hover .metric-tooltip,
+.metric-help:focus-visible + .metric-tooltip,
+.metric-help[aria-expanded="true"] + .metric-tooltip {
+  visibility: visible;
+  opacity: 1;
 }
 
 .notice {
@@ -229,7 +270,169 @@
   font-size: var(--font-size-xs);
 }
 
+/* History page */
+.page-history .site-main {
+  padding-block: var(--space-4) var(--space-6);
+}
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.history__status {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.history__empty-action {
+  margin-top: var(--space-2);
+}
+
+.history__table-wrap {
+  overflow-x: auto;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.history-table th {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: var(--border-width) solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.history-table th:nth-child(n + 3) {
+  text-align: right;
+}
+
+.history-table td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: var(--border-width) solid var(--border);
+  white-space: nowrap;
+}
+
+.history-table td.numeric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.history-table__row {
+  cursor: pointer;
+  transition: background-color var(--motion-fast) ease;
+}
+
+.history-table__row:hover,
+.history-table__row:focus-within {
+  background: var(--surface);
+}
+
+.history-table__link {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.history-table__link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.pagination__status {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+/* Analytics page */
+.page-analytics .site-main {
+  padding-block: var(--space-4) var(--space-6);
+}
+
+.analytics {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.analytics__scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.analytics__scope[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.analytics__scope[aria-pressed="true"]:hover {
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.analytics__status {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.analytics__empty-action {
+  margin-top: var(--space-2);
+}
+
+.analytics__charts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.analytics__chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--border);
+}
+
+.analytics__chart-title {
+  font-size: var(--font-size-lg);
+}
+
+.analytics__guidance {
+  max-width: 70ch;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.analytics__plot {
+  position: relative;
+  height: 240px;
+}
+
 @media (max-width: 640px) {
+  .analytics__plot {
+    height: 200px;
+  }
+
   .metric-row {
     align-items: flex-start;
     flex-direction: column;

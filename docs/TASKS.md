@@ -154,63 +154,79 @@
 - [x] **Commit (deferred):** `feat(db): schema and connection management` — not performed; commits require explicit approval (see ADR-033)
 
 ### P0-D2-02: Repository and persistence
-- [ ] Implement `app/repository.py`: all SQL — INSERT session, INSERT metrics, INSERT events (`executemany`), INSERT key stats (`executemany`), all in a **single transaction**
-- [ ] Implement GET queries: session by id, session list (paginated), session key stats
-- [ ] Write `tests/test_repository.py`:
-  - Persistence round-trip (save and retrieve match)
-  - FK cascade (deleting session removes events and metrics)
+- [x] Implement `app/repository.py`: all SQL — INSERT session, INSERT metrics, INSERT events (`executemany`), INSERT key stats (`executemany`), all in a **single transaction**
+- [x] Implement GET queries: session by id, session list (paginated, newest first, with exact total), session key stats
+- [x] Write `tests/test_repository.py`:
+  - Persistence round-trip (save and retrieve match; 10 cases)
+  - FK cascade (deleting session removes events, metrics and key stats)
   - Rollback on mid-save failure (no partial data)
   - Paginated list returns correct total and items
-- [ ] Update `POST /api/sessions` to persist to DB
-- [ ] **Acceptance:** session saved after POST; retrievable by id; rollback works; `pytest` green
+- [x] Update `POST /api/sessions` to persist to DB; `GET /results/<id>` renders the persisted record; `app/session_store.py` removed (ADR-034)
+- [x] **Acceptance:** session saved after POST; retrievable by id; rollback works; `pytest tests/ -q`: **469 passed** (459 previous + 10 repository cases)
+- [x] **Files touched:** `app/repository.py`, `app/session_store.py` (deleted), `app/__init__.py`, `app/routes/api.py`, `app/routes/pages.py`, `app/templates/results.html`, `tests/test_repository.py`, `tests/test_sessions.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- [x] **Commit (deferred):** `feat(db): persistence — single-transaction save and round-trip tests` — not performed; commits require explicit approval (see ADR-034)
 - [ ] **Commit:** `feat(db): persistence — single-transaction save and round-trip tests`
 
 ### P0-D2-03: Results page (full)
-- [ ] Implement `GET /api/sessions/<id>` returning `{ session, metrics, key_stats }`
-- [ ] Implement `app/templates/results.html` with all three tiers (see `docs/UI_DESIGN.md` §5)
-- [ ] Implement `app/static/js/results-page.js`
-- [ ] Every metric label has a `?` definition tooltip
-- [ ] "About the measurements" note present (§5.5 timing honesty)
-- [ ] Data-quality line shows only when non-zero
-- [ ] `Eu` shown only when non-zero
-- [ ] **Acceptance:** all metrics displayed correctly; tooltips work; note is present
+> **Status (2026-11-10):** Complete — API (ADR-035) and results-page UI.
+- [x] Implement `GET /api/sessions/<id>` returning `{ session, metrics, key_stats }` (2026-11-10; ADR-035)
+- [x] Implement `app/templates/results.html` with all three tiers (see `docs/UI_DESIGN.md` §5)
+- [x] Implement `app/static/js/results-page.js` (tooltip interaction only; no fetching or metric math)
+- [x] Every metric label has a `?` definition tooltip (accessible button + `role="tooltip"` text)
+- [x] "About the measurements" note present (§5.5 timing honesty)
+- [x] Data-quality line shows only when non-zero
+- [x] `Eu` shown only when non-zero
+- [x] **Acceptance:** all metrics displayed correctly; tooltips work; note is present
+- [x] **Files touched:** `app/templates/results.html`, `app/static/js/results-page.js`, `app/static/css/components.css`, `tests/test_sessions.py`, `tests/test_infrastructure.py`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- [x] **Commit (deferred):** `feat(results): three-tier results page with metric tooltips` — not performed; commits require explicit approval
 
 ### P0-D2-04: History page
-- [ ] Implement `GET /api/sessions?limit=&offset=` returning `{ items, total }`
-- [ ] Implement `app/templates/history.html` and `app/static/js/history-page.js`
-- [ ] 25 rows per page, pagination controls
-- [ ] Row click navigates to `/results/<id>`
-- [ ] Empty state: "No sessions yet."
-- [ ] **Acceptance:** history lists correctly; pagination works; row click navigates
+> **Status (2026-11-14):** Complete — list API (ADR-036), `/history` page and client-side pagination.
+- [x] Implement `GET /api/sessions?limit=&offset=` returning `{ items, total }`
+- [x] Implement `app/templates/history.html` and `app/static/js/history-page.js`
+- [x] 25 rows per page, pagination controls
+- [x] Row click navigates to `/results/<id>`
+- [x] Empty state: "No sessions yet."
+- [x] **Acceptance:** history lists correctly; pagination works; row click navigates. `pytest tests/ -q`: **486 passed**; Chromium verified 25 rows, page 2 of 2, disabled control states and row navigation.
+- [x] **Files touched:** `app/config.py`, `app/repository.py`, `app/routes/api.py`, `app/routes/pages.py`, `app/templates/base.html`, `app/templates/history.html`, `app/static/js/history-page.js`, `app/static/css/components.css`, `tests/test_sessions.py`, `tests/test_repository.py`, `tests/test_infrastructure.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- [x] **Commit (deferred):** `feat(history): list endpoint and paginated history page` — not performed; commits require explicit approval (ADR-036)
 
 ### P0-D2-05: Typing screen polish
-- [ ] Passage viewport: caret rendering, character state rendering (untyped/correct/incorrect/caret), scroll-follows-caret (line 2)
-- [ ] Live row: hidden until first keystroke, labelled *provisional*
-- [ ] Config strip: mode toggle, time options (15/30/60), passage selector
-- [ ] All state messages: fix-highlighted, too-short, cancelled-by-focus-loss
-- [ ] Focus behaviour: auto-focus on load, re-focus after config changes
-- [ ] **Acceptance:** manual check per `docs/UI_DESIGN.md` §4
+> **Status (2026-11-14):** Complete — verified against `docs/UI_DESIGN.md` §4. Caret line alignment fixed; the too-short copy now matches the documented message.
+- [x] Passage viewport: caret rendering, character state rendering (untyped/correct/incorrect/caret), scroll-follows-caret (line 2)
+- [x] Live row: hidden until first keystroke, labelled *provisional*
+- [x] Config strip: mode toggle, time options (15/30/60), passage selector
+- [x] All state messages: fix-highlighted, too-short, cancelled-by-focus-loss
+- [x] Focus behaviour: auto-focus on load, re-focus after config changes
+- [x] **Acceptance:** manual check per `docs/UI_DESIGN.md` §4
+- [x] **Files touched:** `app/static/js/typing-engine.js`, `app/routes/api.py`, `tests/test_sessions.py`, `tests/test_typing_screen.py` (new), `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- **Commit (deferred):** `feat(test): polish typing screen caret and state messages` — not performed; commits require explicit approval
 
 ### P0-D2-06: Progress endpoint and analytics charts
-- [ ] Implement `GET /api/analytics/progress?scope=` returning sessions with `net_wpm`, `accuracy_pct`, moving average
-- [ ] Implement `app/templates/analytics.html` and `app/static/js/analytics-page.js`
-- [ ] WPM and accuracy charts (stacked pair, shared x-axis, 5-session moving average)
-- [ ] Charts are theme-aware (re-read tokens on `tba:themechange`)
-- [ ] `app/static/js/charts.js` (Chart.js wrappers, theme helpers)
-- [ ] Empty state: no fake data
-- [ ] **Acceptance:** charts render; theme switch recolours without page reload
+> **Status (2026-11-14):** Complete — progress API (ADR-037), `/analytics` page, theme-aware WPM/accuracy charts.
+- [x] Implement `GET /api/analytics/progress?scope=` returning sessions with `net_wpm`, `accuracy_pct`, moving average
+- [x] Implement `app/templates/analytics.html` and `app/static/js/analytics-page.js`
+- [x] WPM and accuracy charts (stacked pair, shared x-axis, 5-session moving average)
+- [x] Charts are theme-aware (re-read tokens on `tba:themechange`)
+- [x] `app/static/js/charts.js` (Chart.js wrappers, theme helpers)
+- [x] Empty state: no fake data
+- [x] **Acceptance:** charts render; theme switch recolours without page reload. `pytest tests/ -q`: **507 passed**; Chromium verified charts with 7 stored sessions, the scope toggle, theme recolouring without reload, the empty state and nav.
+- [x] **Files touched:** `app/config.py`, `app/engine/metrics.py`, `app/repository.py`, `app/routes/api.py`, `app/routes/pages.py`, `app/templates/base.html`, `app/templates/analytics.html`, `app/static/js/analytics-page.js`, `app/static/js/charts.js`, `app/static/css/components.css`, `tests/test_analytics.py` (new), `tests/test_repository.py`, `tests/test_metrics.py`, `tests/test_infrastructure.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- **Commit (deferred):** `feat(analytics): progress endpoint and theme-aware charts` — not performed; commits require explicit approval (ADR-037 explains the series contract and resolves AMB-004).
 
 ### P0-D2-07: sessions.csv export
-- [ ] Implement `app/exporters.py`: UTF-8 BOM CSV; injection guard (`= + - @` get leading `'`); fixed columns in blueprint order
-- [ ] Implement `GET /api/export/sessions.csv` route
-- [ ] Write `tests/test_exports.py`:
+> **Status (2026-11-14):** Complete — exporter (ADR-038), `exports` blueprint and 9 export cases.
+- [x] Implement `app/exporters.py`: UTF-8 BOM CSV; injection guard (`= + - @` get leading `'`); fixed columns in blueprint order
+- [x] Implement `GET /api/export/sessions.csv` route
+- [x] Write `tests/test_exports.py`:
   - UTF-8 BOM present
   - Injection guard on cells starting with `= + - @`
   - Null metrics export as empty cells (not "None" or "null")
   - Fixed column order matches spec
-- [ ] **Acceptance:** export downloads correctly; BOM present; injection safe; `pytest` green
-- [ ] **Commit:** `feat(day2): persistence, results, history, progress, export`
-- [ ] Run `git tag day2` after committing
+- [x] **Acceptance:** export downloads correctly; BOM present; injection safe; `pytest` green. `pytest tests/ -q`: **516 passed**; real HTTP request against an isolated server returned `200`, `text/csv; charset=utf-8`, `attachment; filename="sessions.csv"`, BOM and one persisted row.
+- [x] **Files touched:** `app/exporters.py` (new), `app/repository.py`, `app/routes/exports.py` (new), `app/__init__.py`, `tests/test_exports.py` (new), `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- [ ] **Commit:** `feat(day2): persistence, results, history, progress, export` — not performed; commits require explicit approval
+- [ ] Run `git tag day2` after committing — not performed
 
 ---
 

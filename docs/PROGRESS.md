@@ -1,15 +1,15 @@
 # PROGRESS.md — Project Status
 
-> Updated: 2026-11-06
-> Branch: `feature/project-foundation`
+> Updated: 2026-11-14
+> Branch: `database-version`
 
 ---
 
 ## Current Status
 
-**Phase: Implementation in progress — P0-D1-01 through P0-D1-10 complete.**
+**Phase: Implementation in progress — P0-D1-01 through P0-D1-10 and P0-D2-01 through P0-D2-07 complete.**
 
-Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic, the session-payload validator, text resolution, the frontend theme foundation, keyboard capture and the live typing screen now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. `app/texts.py` resolves passages and deterministic word-mode text and guards all content at startup. The test screen is reachable at `GET /`, loads time-mode words or a passage through the documented text API, and shows clearly-labelled provisional stats. Esc restarts, Tab is never intercepted, focus loss cancels, and a full buffer with errors blocks completion. A finished attempt now submits the complete accepted event sequence to `POST /api/sessions`, which validates it, resolves the text, replays it in the pure engine and returns the authoritative metrics plus a results link. `GET /results/<session_id>` renders those server-computed numbers from an in-memory store. Database persistence, history and analytics remain in Day 2.
+Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic, the session-payload validator, text resolution, the frontend theme foundation, keyboard capture and the live typing screen now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. `app/texts.py` resolves passages and deterministic word-mode text and guards all content at startup. The test screen is reachable at `GET /`, loads time-mode words or a passage through the documented text API, and shows clearly-labelled provisional stats. Esc restarts, Tab is never intercepted, focus loss cancels, and a full buffer with errors blocks completion. A finished attempt now submits the complete accepted event sequence to `POST /api/sessions`, which validates it, resolves the text, replays it in the pure engine and returns the authoritative metrics plus a results link. `GET /results/<session_id>` renders those server-computed numbers from the SQLite repository. `GET /api/sessions?limit=&offset=` and `/history` list saved sessions newest first, 25 per page, with row navigation to the results page. The typing screen matches `docs/UI_DESIGN.md` §4: token-based character states, a caret anchored to the second visible line with scroll-follows-caret, a provisional live row that stays hidden until the first keystroke, the full config strip, the documented state messages and focus handling. `GET /api/analytics/progress?scope=` and `/analytics` now show stored net WPM and accuracy as a stacked pair with a server-computed 5-session moving average, a scope toggle, theme-aware Chart.js rendering and an explicit empty state. `GET /api/export/sessions.csv` now downloads every stored session as a UTF-8 BOM CSV in the fixed blueprint column order, with empty cells for unavailable metrics and a leading `'` on formula-like cells. The keyboard heatmap remains.
 
 ---
 
@@ -147,8 +147,80 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 - [x] Verified first-run behaviour: `create_app()` created `instance/typing.db` (git-ignored) with the four tables and `user_version = 1`
 - [x] `pytest tests/ -q`: **459 passed** (434 previous + 25 new)
 
+### Repository and persistence (2026-11-09)
+- [x] P0-D2-02: Created `app/repository.py` with every application SQL statement: `SessionRepository` writing sessions → session_metrics → `executemany` keystroke_events → `executemany` session_key_stats in a single transaction with full rollback on failure; `get(id)`, `count()`, `list_sessions(limit, offset)` (newest first, exact total) and `get_key_stats(id)`
+- [x] Attached the repository behind the historical `app.extensions["tba_session_store"]` key so routes and tests keep one service-locator surface; deleted `app/session_store.py`
+- [x] Only validated events up to the derived end are stored (EVENT_SCHEMA §10): replay drops a trailing suffix, so the repository retains `validated.events[:len(events) - dropped_after_end]`
+- [x] `data_quality_json` stores the non-zero `{code, count, message}` warnings (NULL when none); read-back reconstructs a full `SessionMetrics` from stored columns — `invalid_dwell_count` recovered from the stored warning, `error_rate` derived as `100 − accuracy_pct` per `docs/METRICS.md` §4.4 (logged in ADR-034 together with the non-persistence of `started_at`/`ignored`, which blueprint §9 defines no columns for)
+- [x] Rebuilt `POST /api/sessions` (persist, then respond from the stored record) and `GET /results/<id>` (renders the persisted record; template reads `session.active_duration_ms`)
+- [x] Added `tests/test_repository.py`: round-trip fidelity, events-up-to-derived-end, restart persistence across repository instances, FK cascade, mid-save rollback with no partial data, paginated list, key-stats round-trip; updated `tests/test_sessions.py` for the repository
+- [x] `pytest tests/ -q`: **469 passed** (459 previous + 10 new)
+
+### Session retrieval API (2026-11-10)
+- [x] P0-D2-03 (API portion): added `GET /api/sessions/<id>` returning `{ session, metrics, key_stats }` from `SessionRepository.get()` and `get_key_stats()`; unknown ids return `404 NOT_FOUND`; the route contains no SQL or metric math
+- [x] Added three endpoint tests in `tests/test_sessions.py`: full envelope/session/metric/key-stat fidelity, the dwell-only Backspace row, and the unknown-id 404
+- [x] Recorded ADR-035 for the nested response shape (blueprint §10 fixes only the top-level envelope)
+- [x] `pytest tests/ -q`: **472 passed** (469 previous + 3 new)
+
+### Results page UI (2026-11-10)
+- [x] P0-D2-03 (UI portion): `app/templates/results.html` now carries the full three-tier layout (hero Net WPM/Accuracy, Supporting metrics, Detail and timing, More detail), each metric label with a `?` definition tooltip
+- [x] Replaced the native `title`-only help spans with accessible markup: a `<button data-metric-help>` plus an adjacent `role="tooltip"` span; `title` remains as a no-JS fallback until the module removes it
+- [x] Added `app/static/js/results-page.js`: assigns tooltip ids/`aria-describedby`, toggles `aria-expanded`, closes on blur, Escape and outside click; it never fetches or computes metrics
+- [x] Added tooltip styles to `app/static/css/components.css` using existing design tokens only; hover, `:focus-visible` and `aria-expanded` all show the definition
+- [x] Data quality renders only when warnings exist or `zero_interval_count > 0`; `Eu` renders only when non-zero; unavailable values stay `—` (never `None`)
+- [x] Added tests: tooltip markup/JS contracts, data-quality absence on clean sessions, zero-length interval reporting, and the new static asset; updated `tests/test_infrastructure.py`
+- [x] Verified in Chromium against a persisted session (`053d6adeee02460ead0559dfda2b7204`): 25 tooltips, hover/click/focus show, Escape and outside click dismiss, `Eu` and data quality visible, only console error is the pre-existing `/favicon.ico` 404
+- [x] `pytest tests/ -q`: **474 passed** (472 previous + 2 new)
+
+### History page (2026-11-14)
+- [x] P0-D2-04: added `GET /api/sessions?limit=&offset=` returning `{ items, total }`; `limit` defaults to 25 and is capped at 100, `offset` defaults to 0, and invalid values return `422 VALIDATION_ERROR` with the offending field
+- [x] Extended `SessionSummary` (and the repository list query) with `consistency_score` so the documented six-column table can be rendered; the repository remains the only SQL owner
+- [x] Added `app/templates/history.html` (column headers, empty state, pagination controls, `data-page-size`) and `GET /history` in `app/routes/pages.py`
+- [x] Added `app/static/js/history-page.js`: fetches one page at a time, formats stored values only, drives Previous/Next, shows the documented empty state, and navigates a row to `/results/<id>` (real anchor in the first cell plus a row click listener)
+- [x] Added history table/pagination styles to `app/static/css/components.css` using design tokens only, and switched the `history` nav entry to `url_for` (ADR-028, ADR-036)
+- [x] Added tests: empty list, newest-first summaries with exact total, limit/offset paging, default page size with 26 sessions, invalid pagination values, page markup, script contract, and the new static asset
+- [x] Verified in Chromium against 30 seeded sessions: 25 rows on page 1, page 2 shows 5 rows, Previous/Next disable correctly, a row opens `/results/<id>`, and the only console error is the pre-existing `/favicon.ico` 404
+- [x] Recorded ADR-036 (list item shape, pagination defaults/limits, client-rendered page, row navigation)
+- [x] `pytest tests/ -q`: **486 passed** (474 previous + 12 new)
+
+### Typing screen polish (2026-11-14)
+- [x] P0-D2-05: verified every `docs/UI_DESIGN.md` §4 state against the live page before changing code
+- [x] Fixed the caret alignment in `app/static/js/typing-engine.js`: the caret is now anchored to the line box (line index derived from the first span's `offsetTop`) instead of the inline content box, so it no longer overhangs the following line; the track still keeps the caret on visible line 2
+- [x] Confirmed untyped/correct/incorrect character states and the 2 px accent caret use tokens only; untyped = muted, correct = text, incorrect = error + underline + `--error-bg`, caret blinking only when idle
+- [x] Confirmed the live row stays hidden until the first keystroke, carries the `provisional` badge, and shows timer/WPM/accuracy
+- [x] Confirmed the config strip (mode toggle, 15/30/60, passage selector), the documented fix-highlighted and focus-loss messages, and Esc-returns-to-idle
+- [x] Aligned the too-short copy with `docs/UI_DESIGN.md` §4: `SESSION_TOO_SHORT` now says "Too short to save."
+- [x] Confirmed auto-focus on load and re-focus after every config change (including the passage selector)
+- [x] Added `tests/test_typing_screen.py` (7 contracts: config strip, hidden provisional live row, three-line focusable viewport, token character/caret states, engine state classes and fix message, caret line anchoring, focus defaults) and tightened the existing too-short test to assert the documented message
+- [x] Browser verification of the rendered states, config strip, caret line position (with the transition disabled to measure the final layout), provisional row, fix message, too-short message, Esc reset and the focus-loss cancellation handler; the desktop window could not receive native keystrokes, so input was dispatched through DOM keyboard events
+- [x] `pytest tests/ -q`: **493 passed** (486 previous + 7 new)
+
+### Progress endpoint and analytics charts (2026-11-14)
+- [x] P0-D2-06: added `GET /api/analytics/progress?scope=`; scope defaults to `all` and accepts only `last_10`, `last_30` and `all`, with `422 VALIDATION_ERROR` (`field: "scope"`) for anything else
+- [x] Added `SessionRepository.list_progress(limit)` (the only SQL) selecting the newest 10/30/all rows by `created_at DESC, id DESC` and returning them oldest first for a forward-running x axis
+- [x] Added `engine.metrics.trailing_moving_average()`: trailing 5-point window, expanding for the first 1–4 points, skipping `None` instead of treating it as zero; resolves AMB-004
+- [x] Response is `{ scope, window, sessions }`; each session carries `session_id`, `created_at`, `mode`, `duration_limit_ms`, `net_wpm`, `accuracy_pct` and both server-computed moving averages
+- [x] Added `/analytics` (`pages.analytics_page`), `app/templates/analytics.html`, `app/static/js/analytics-page.js` and `app/static/js/charts.js`; the nav entry now uses `url_for`
+- [x] Two stacked charts share the session labels: stored series plus the dashed 5-session moving average; nulls stay gaps, accuracy is fixed to 0–100, and each chart has one "what to look for" line
+- [x] Charts re-read CSS tokens and `chart.update("none")` on `tba:themechange`; scope changes destroy the previous instances before rendering, and empty history creates no chart at all
+- [x] Empty state uses the documented "No sessions yet." copy plus a Take a test link; styling in `components.css` uses tokens only
+- [x] Added `tests/test_analytics.py` (12 cases: empty history, five invalid scopes, chronological series with hand-computed averages, scope limits/default, null metrics, newly persisted session, page markup/nav, asset/JS contracts), a repository progress-series test and a moving-average unit test
+- [x] Verified in Chromium against 7 stored sessions: both charts render all 7 points with the server averages, `last 10` switches and leaves exactly two chart instances, the theme toggle recolours the series from `#e28ab2` to `#8e2949` without reloading, the empty database shows the empty state with no chart, nav reaches `/analytics`, and the console has no errors (only the pre-existing `/favicon.ico` 404)
+- [x] Recorded ADR-037 (series shape, scope validation/default, ordering, null handling, page ownership, AMB-004 resolution)
+- [x] `pytest tests/ -q`: **507 passed** (493 previous + 14 new)
+
+### Sessions CSV export (2026-11-14)
+- [x] P0-D2-07: added `app/exporters.py` with the blueprint §10 column tuple, RFC 4180 CRLF rows, UTF-8 BOM output and the `= + - @` formula-injection guard; NULL values become empty cells
+- [x] Added `SessionExportRow` and `SessionRepository.list_export_rows()` (the only SQL), returning every stored session newest first with `gross_wpm`, `final_accuracy_pct` and the four keystroke counts
+- [x] Added `app/routes/exports.py` (`exports` blueprint): `GET /api/export/sessions.csv` returns `text/csv; charset=utf-8` with `Content-Disposition: attachment; filename="sessions.csv"`; an empty database returns the BOM plus the header row
+- [x] Registered the blueprint in `create_app()`; the route holds no SQL and the exporter holds no HTTP or database access
+- [x] Added `tests/test_exports.py` (9 cases: exact column order, empty-database CSV, one persisted session, multiple sessions newest first, NULL cells, injection guard, quoting/Unicode round trip, repeatable read-only download, layer separation)
+- [x] Recorded ADR-038 (row order, line endings, filename/content type, rendering, layer ownership)
+- [x] Verified with a real HTTP request against an isolated server and temporary database: `201` submit, then `200` download with `text/csv; charset=utf-8`, `attachment; filename="sessions.csv"`, BOM, header plus the persisted row matching the stored metrics
+- [x] `pytest tests/ -q`: **516 passed** (507 previous + 9 new)
+
 ### Application code
-- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, P0-D1-09 typing screen, and P0-D1-10 session submission with in-memory results; no database, history or analytics yet
+- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, P0-D1-09 typing screen, P0-D1-10 session submission, P0-D2-01 schema, P0-D2-02 persistence, P0-D2-03 session retrieval API and the three-tier results page, P0-D2-04 history list and page, P0-D2-05 typing-screen polish, P0-D2-06 progress endpoint and analytics charts, P0-D2-07 sessions CSV export; the heatmap pages are still pending
 
 ---
 
@@ -167,12 +239,12 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 | P0-D1-09: Frontend — capture / typing engine | ✅ Complete (2026-11-06) |
 | P0-D1-10: First vertical slice | ✅ Complete (2026-11-06) — `POST /api/sessions` + in-memory results (ADR-031, ADR-032) |
 | P0-D2-01: DB schema and connection | ✅ Complete (2026-11-09) — `app/schema.sql` + `app/db.py`, ADR-033 |
-| P0-D2-02: Repository and persistence | ⬜ Not started |
-| P0-D2-03: Results page (full) | ⬜ Not started |
-| P0-D2-04: History page | ⬜ Not started |
-| P0-D2-05: Typing screen polish | ⬜ Not started |
-| P0-D2-06: Progress endpoint and analytics charts | ⬜ Not started |
-| P0-D2-07: sessions.csv export | ⬜ Not started |
+| P0-D2-02: Repository and persistence | ✅ Complete (2026-11-09) — `app/repository.py` + repository-backed routes (ADR-034) |
+| P0-D2-03: Results page (full) | ✅ Complete (2026-11-10) — API (ADR-035) + three-tier UI with tooltips |
+| P0-D2-04: History page | ✅ Complete (2026-11-14) — list API (ADR-036) + paginated `/history` page |
+| P0-D2-05: Typing screen polish | ✅ Complete (2026-11-14) — caret line anchoring + documented state messages |
+| P0-D2-06: Progress endpoint and analytics charts | ✅ Complete (2026-11-14) — progress API (ADR-037) + theme-aware `/analytics` charts |
+| P0-D2-07: sessions.csv export | ✅ Complete (2026-11-14) — BOM CSV exporter (ADR-038) + `GET /api/export/sessions.csv` |
 | P0-D3-01: Key stats aggregation and heatmap API | ⬜ Not started |
 | P0-D3-02: Heatmap UI | ⬜ Not started |
 | P0-D3-03: Hygiene tests | ⬜ Not started |
@@ -183,9 +255,9 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 
 ## Next Milestone
 
-**Day 1 vertical slice:** by end of Day 1, a user should be able to type, submit, and see metrics — even without DB persistence. The engine must pass all golden fixtures (A–G).
+**Day 2:** database-backed persistence, the full results page, the history page, the typing-screen polish pass, the progress charts and the CSV export are complete.
 
-Exact next task: **P0-D2-01** — database schema and connection (`app/schema.sql`, `app/db.py`, `init_db()`), followed by P0-D2-02 persistence and P0-D2-03 results API.
+Exact next task: **P0-D3-01** — key stats aggregation and heatmap API (`GET /api/analytics/keys?scope=`), then the P0-D3-02 heatmap UI, hygiene tests, manual pass and release.
 
 ---
 
@@ -195,7 +267,7 @@ See `docs/DECISIONS.md` for open ambiguities:
 - **AMB-001:** ✅ Resolved by ADR-027 (200-word list frozen; author editorial review pending before release)
 - **AMB-002:** ✅ Resolved by ADR-027 (12 original ASCII passages; author editorial review pending before release)
 - **AMB-003:** Passage selector label format (minor; use first ~40 characters per ADR-027)
-- **AMB-004:** Moving average window behaviour at < 5 sessions (assumed trailing window with expanding for early sessions)
+- **AMB-004:** ✅ Resolved by ADR-037 (trailing 5-session window, expanding for the first 1–4 points, nulls skipped)
 
 ### Known issues carried forward
 - Per-key attribution is resolved: `metrics.py` still returns the two raw maps (ADR-022), and `keys.merge_session_key_stats()` now produces the `key_code`-keyed rows (ADR-024). `SessionAnalysis` exposes both forms.
@@ -206,7 +278,7 @@ See `docs/DECISIONS.md` for open ambiguities:
 - Application limits outside `docs/METRICS.md` §14 are now centralised in `app/config.py` (schema version, event counts, 2 MiB body, allowed durations, word-count range, duration→word sizing).
 - `docs/UI_DESIGN.md` §7 references `docs/METRICS.md` §6 for the Wilson heuristic; correct during UI documentation cleanup.
 - `README.md` is not yet present; leave for P0-D3-05.
-- `app/routes/__init__.py` is not specified; decide when implementing routes.
-- Base-template nav links for `analytics`, `keyboard` and `history` still 404 until their Day 2/3 tasks; this is deliberate (ADR-028).
-- Chart.js is vendored but not loaded by any page until the chart work (P0-D2-06).
+- `app/routes/` now holds `pages.py`, `api.py` and `exports.py`; all three blueprints are registered in `create_app()`. The CSV export route is the only one that does not return JSON.
+- Base-template nav links for `analytics` and `keyboard` used to 404; `analytics` now resolves to `/analytics` and `history` to `/history`, while `keyboard` remains deliberate until P0-D3-02 (ADR-028).
+- Chart.js is vendored and loaded only by `analytics.html`; no other page carries it.
 - Only the latin font subsets are vendored, matching the ASCII-only application content (ADR-028).

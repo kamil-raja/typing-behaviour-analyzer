@@ -33,6 +33,30 @@ MS_PER_MINUTE: Final = 60_000.0
 CHARS_PER_WORD: Final = 5.0
 
 
+def trailing_moving_average(
+    values: Sequence[float | None],
+    window: int,
+) -> list[float | None]:
+    """Return the trailing mean of up to ``window`` recent non-null values.
+
+    Early points use every value available so far (expanding window), and a
+    ``None`` input is skipped rather than treated as zero. The result is
+    ``None`` only when the window contains no non-null value.
+    """
+    if window < 1:
+        raise ValueError("window must be at least 1")
+
+    result: list[float | None] = []
+    for index in range(len(values)):
+        recent = [
+            value
+            for value in values[max(0, index - window + 1) : index + 1]
+            if value is not None
+        ]
+        result.append(sum(recent) / len(recent) if recent else None)
+    return result
+
+
 @dataclass(frozen=True)
 class SessionMetrics:
     """All session-level metrics stored in ``session_metrics``.

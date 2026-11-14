@@ -5,7 +5,10 @@
 {%- endmacro %}
 
 {% macro help(text) -%}
-  <span class="metric-help" tabindex="0" title="{{ text }}">?</span>
+  <span class="metric-help-wrap">
+    <button class="metric-help" type="button" data-metric-help aria-expanded="false" aria-label="Metric definition" title="{{ text }}">?</button>
+    <span class="metric-tooltip" role="tooltip">{{ text }}</span>
+  </span>
 {%- endmacro %}
 
 {% block title %}Results · Typing Behaviour Analyzer{% endblock %}
@@ -123,7 +126,7 @@
           Active duration
           {{ help("Time from the first accepted keystroke to completion or to the timer limit.") }}
         </dt>
-        <dd class="numeric">{{ (replay.active_duration_ms / 1000)|round(2) }} s</dd>
+        <dd class="numeric">{{ (session.active_duration_ms / 1000)|round(2) }} s</dd>
       </div>
     </dl>
   </section>
@@ -307,4 +310,8 @@
     <a class="button button--primary" href="/">Take another test</a>
   </p>
 </section>
+{% endblock %}
+
+{% block scripts %}
+  <script type="module" src="{{ url_for('static', filename='js/results-page.js') }}"></script>
 {% endblock %}

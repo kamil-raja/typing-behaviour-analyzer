@@ -8,9 +8,10 @@ from flask import Flask
 
 from . import config
 from .db import init_db
+from .repository import STORE_EXTENSION_KEY, SessionRepository
 from .routes.api import api_bp
+from .routes.exports import exports_bp
 from .routes.pages import pages_bp
-from .session_store import STORE_EXTENSION_KEY, InMemorySessionStore
 from .texts import validate_text_sources
 
 
@@ -20,8 +21,7 @@ def create_app(test_config: Mapping[str, Any] | None = None) -> Flask:
     Text sources are checked before the app is returned so invalid content
     fails startup loudly (``docs/EVENT_SCHEMA.md`` §9). The database defaults
     to ``instance/typing.db``; ``test_config`` lets tests point ``DATABASE`` at
-    a temporary file. The in-memory session store is a P0-D1-10 stand-in for
-    the P0-D2-02 repository.
+    a temporary file. The repository owns every SQL statement (P0-D2-02).
     """
     app = Flask(__name__)
     app.config.from_object(config)
@@ -33,8 +33,9 @@ def create_app(test_config: Mapping[str, Any] | None = None) -> Flask:
         app.config.from_mapping(test_config)
 
     validate_text_sources()
-    app.extensions[STORE_EXTENSION_KEY] = InMemorySessionStore()
+    app.extensions[STORE_EXTENSION_KEY] = SessionRepository(app.config["DATABASE"])
     init_db(app)
     app.register_blueprint(pages_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(exports_bp)
     return app

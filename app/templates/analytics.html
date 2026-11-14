@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Analytics · Typing Behaviour Analyzer{% endblock %}
+{% block description %}Your net WPM and accuracy across saved sessions, with a {{ window }}-session moving average.{% endblock %}
+{% block body_class %}page-analytics{% endblock %}
+
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="analytics" data-analytics-root data-scope="{{ default_scope }}" aria-labelledby="analytics-heading">
+  <header class="results__header">
+    <p class="results__eyebrow">Analytics</p>
+    <h1 class="page-title" id="analytics-heading">Progress</h1>
+    <p class="page-lede">Net speed and accuracy across your saved sessions. Every value comes from your stored results.</p>
+  </header>
+
+  <div class="analytics__scopes" role="group" aria-label="Session scope">
+    <button class="button analytics__scope" type="button" data-scope-option="last_10" aria-pressed="false">last 10</button>
+    <button class="button analytics__scope" type="button" data-scope-option="last_30" aria-pressed="false">last 30</button>
+    <button class="button analytics__scope" type="button" data-scope-option="all" aria-pressed="false">all sessions</button>
+  </div>
+
+  <p class="analytics__status" role="status" data-analytics-status>Loading progress…</p>
+
+  <div class="analytics__empty notice" data-analytics-empty hidden>
+    <p>No sessions yet. Take a typing test to see your progress here.</p>
+    <p class="analytics__empty-action">
+      <a class="button button--primary" href="{{ url_for('pages.test_page') }}">Take a test</a>
+    </p>
+  </div>
+
+  <div class="analytics__charts" data-analytics-charts hidden>
+    <section class="analytics__chart" aria-labelledby="wpm-chart-heading">
+      <h2 class="analytics__chart-title" id="wpm-chart-heading">Net WPM progression</h2>
+      <p class="analytics__guidance">What to look for: a rising line means your net speed is improving; the dashed line smooths the last {{ window }} sessions.</p>
+      <div class="analytics__plot">
+        <canvas data-chart="wpm" role="img" aria-label="Net words per minute for each saved session, with a {{ window }}-session moving average."></canvas>
+      </div>
+    </section>
+
+    <section class="analytics__chart" aria-labelledby="accuracy-chart-heading">
+      <h2 class="analytics__chart-title" id="accuracy-chart-heading">Accuracy progression</h2>
+      <p class="analytics__guidance">What to look for: a flat line near 100% matters more than the size of any single jump.</p>
+      <div class="analytics__plot">
+        <canvas data-chart="accuracy" role="img" aria-label="Accuracy percentage for each saved session, with a {{ window }}-session moving average."></canvas>
+      </div>
+    </section>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+  <script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
+  <script type="module" src="{{ url_for('static', filename='js/analytics-page.js') }}"></script>
+{% endblock %}

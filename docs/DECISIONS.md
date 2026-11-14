@@ -380,6 +380,72 @@ P0-D1-05 will map expected characters through `CHAR_TO_CODE` and merge the two m
 - `session_metrics` keeps exactly the blueprint columns. `error_rate` is derivable from `accuracy_pct`, and `invalid_dwell_count` plus the warning counters belong in `data_quality_json`; adding extra columns would break blueprint fidelity. P0-D2-02 owns how those JSON payloads are populated.
 **Consequences:** The schema is a direct transcription of blueprint §9, so P0-D2-02 can insert the engine output without schema changes except for serialising `data_quality_json`. Tests never touch the developer database, and every connection enforces foreign keys.
 
+### ADR-034: Session repository, persistence contract and read-back reconstruction
+**Date:** 2026-11-09
+**Status:** Approved
+**Context:** P0-D2-02 replaces the in-memory store with `app/repository.py`. The blueprint §9 columns do not include the validator's `started_at`/`ignored` diagnostics or the engine's `error_rate`/`invalid_dwell_count`, replay drops stored events only implicitly, and the results page and 201 response currently read `SessionMetrics`/`ReplayResult` objects from the store. These gaps need an explicit persistence contract.
+**Decision:**
+- `SessionRepository(database)` lives in `app/repository.py`, opens one connection per method through `app.db.connect()`, and is attached as `app.extensions["tba_session_store"]`. The extension-key constant keeps its historical name (`STORE_EXTENSION_KEY`) and value for continuity with the routes and tests; the class surface mirrors the store: `create(payload, analysis)` → `SessionRecord`, `get(id)`, `count()`, plus `list_sessions(limit, offset) → (items, total)` and `get_key_stats(id)`.
+- `create()` writes one row per table in a single transaction: sessions, session_metrics, then `executemany` over the retained events and the `SessionKeyStat` rows, then commit; any failure rolls the whole transaction back and re-raises. `created_at` is UTC ISO-8601 with a `Z` suffix (same format as ADR-032); ids are `uuid4().hex`. `analysis_version` comes from `config.ANALYSIS_VERSION`.
+- Stored per-session values come verbatim from the engine: `passage_text` = the replayed text snapshot, `typed_text` = `ReplayResult.typed_final`, `active_duration_ms` and `end_reason` from the replay. `started_at` and the `ignored` counters are **not persisted** — blueprint §9 defines no columns for them (ADR-026 keeps `started_at` informational).
+- Only validated events *up to the derived end* are stored (EVENT_SCHEMA §10). Replay drops events strictly as a trailing suffix once an end is derived (the retained prefix includes the completing keystroke and excludes the timer-boundary event), so the retained events are `validated.events[:len(events) - dropped_after_end]`.
+- `data_quality_json` holds a JSON array of the non-zero tolerated condition entries `{code, count, message}` (the `warnings` list); NULL when none occurred. `invalid_dwell_count` is recovered from that array on read-back (0 when absent); `iki_hist_json` stays NULL until P1.
+- `SessionRecord` (frozen dataclass) is the read shape for both the POST response and the results page. Read-back reconstructs a full `SessionMetrics` from the stored columns; `error_rate` is derived at that point as `100 − accuracy_pct`. This is a deliberate, minimal deviation from "the repository computes no metrics": it only applies the documented identity `error_rate = 100 · E / K = 100 − accuracy_pct` (`docs/METRICS.md` §4.4) because the blueprint defines no `error_rate` column, and it never recomputes anything from raw events. It deviates from ADR-033's wording ("derivable" rather than derivable *at read time*) in rendering only.
+- `list_sessions(limit, offset)` returns newest-first summaries (`SessionSummary`: id, created_at, mode, duration_limit_ms, active_duration_ms, end_reason, net_wpm, accuracy_pct) ordered by `created_at DESC, id DESC`, with the exact total count.
+- Routes keep handling only JSON shaping; pages.py renders from `SessionRecord`; the results template reads `session.active_duration_ms` instead of the in-memory `replay` object. `app/session_store.py` is deleted.
+**Consequences:** `pytest test_sessions.py` keeps working with `SessionRepository` behind the same `create`/`get`/`count` calls. No metric is recomputed from raw events on read; the only arithmetic is the documented error-rate identity. `GET /api/sessions/<id>` (P0-D2-03) can build directly on `get()` and `get_key_stats()`.
+
+### ADR-035: Session detail API response shape
+**Date:** 2026-11-10
+**Status:** Approved
+**Context:** Blueprint §10 fixes `GET /api/sessions/<id>` as `{ session, metrics, key_stats }` but does not name the nested fields. The persisted shapes already exist: `SessionRecord` (ADR-034), `SessionMetrics`, and `SessionKeyStat` (ADR-024). The endpoint must serialise them without recomputing metrics or exposing SQL.
+**Decision:**
+- `session` mirrors the stored session record: `session_id`, `created_at`, `schema_version`, `mode`, `duration_limit_ms`, `text_ref`, `passage_text`, `typed_text`, `active_duration_ms`, `end_reason`, `client`, `layout_hint`, `analysis_version`, and `warnings` (the persisted non-zero data-quality conditions).
+- `metrics` is exactly `asdict(SessionMetrics)` — the stored metric fields including the read-back `error_rate` identity and `invalid_dwell_count` (ADR-034). Session context (`mode`, `duration_limit_ms`, `active_duration_ms`, `end_reason`, `analysis_version`) lives in `session`, unlike the flattened `POST /api/sessions` response.
+- `key_stats` is the ordered list of stored `SessionKeyStat` rows (`key_code`, `attempts`, `errors`, `dwell_count`, `dwell_sum_ms`, `iki_count`, `iki_sum_ms`) from `get_key_stats()`. No means or classification are added here; those belong to the P0-D3-01 analytics endpoint.
+- Unknown ids return `404 NOT_FOUND` in the documented error envelope. The route calls only `repository.get()` and `repository.get_key_stats()`.
+**Consequences:** The response exposes persisted values only, so the results page and API cannot disagree. The remaining P0-D2-03 UI can consume this shape; adding per-key means or `series.wpm` (P1) is an additive API change.
+
+### ADR-036: History list contract and client-rendered history page
+**Date:** 2026-11-14
+**Status:** Approved
+**Context:** P0-D2-04 needs `GET /api/sessions?limit=&offset=`, but blueprint §10 fixes only the `{ items, total }` envelope and the `limit ≤ 100` cap. It does not fix the default limit, the behaviour for invalid query values, or the item field set. `docs/UI_DESIGN.md` §8 requires a six-column table including consistency and 25 rows per page, while `SessionSummary` (ADR-034) carried only net WPM and accuracy. The task requires `history-page.js` but does not say whether the page is server-rendered or fetches the list.
+**Decision:**
+- `items` is one `SessionSummary` object per row with `session_id`, `created_at`, `mode`, `duration_limit_ms`, `active_duration_ms`, `end_reason`, `net_wpm`, `accuracy_pct` and `consistency_score`. `SessionSummary` gains `consistency_score` because the documented table needs it; the repository's list `SELECT` reads `session_metrics.consistency_score`. `total` is the exact count of all stored sessions.
+- `limit` defaults to `HISTORY_PAGE_SIZE = 25` and must be an integer from 1 to `SESSION_LIST_MAX_LIMIT = 100`. `offset` defaults to 0 and must be a non-negative integer. Both are validated against a digits-only pattern before reaching the repository; violations return `422 VALIDATION_ERROR` with `field` `"limit"` or `"offset"`, matching the existing words-endpoint convention.
+- `/history` is a thin server-rendered shell (`pages.history_page`) carrying the six column headers, the empty state and a page-size data attribute. `history-page.js` fetches `/api/sessions?limit=<pageSize>&offset=<offset>`, renders rows, and owns Previous/Next state. Page size travels through `data-page-size`, so the constant is not duplicated in JavaScript.
+- Rendering formats stored values only (`toFixed`/date locale); it computes no metric. Duration and mode labels are unit presentation of stored fields.
+- Each row carries a real `<a>` to `/results/<session_id>` in its first cell for keyboard and screen-reader navigation, plus a row-level click listener. A click on an inner link is left to the browser so navigation is not duplicated.
+- The empty state is the `docs/UI_DESIGN.md` §8 text and only appears when `total == 0`; the table and controls are hidden in that state.
+- `base.html` now resolves the history nav entry with `url_for('pages.history_page')` per ADR-028; the rendered path stays `/history`.
+**Consequences:** The list API, page and results page agree on the summary shape. Pagination is bounded server-side, so a client cannot request an unbounded page. Any future page size change is a single constant edit, and adding columns to the list is an additive `SessionSummary` change.
+
+### ADR-037: Progress series contract and theme-aware analytics charts
+**Date:** 2026-11-14
+**Status:** Approved
+**Context:** Blueprint §10 fixes `GET /api/analytics/progress?scope=` only as "sessions with `net_wpm`, `accuracy_pct`, and a moving average" with `scope ∈ last_10, last_30, all`. `docs/UI_DESIGN.md` §6 adds a scope toggle, a stacked WPM/accuracy pair with a shared x axis and a 5-session moving average, and theme re-rendering on `tba:themechange`. The response shape, ordering, default scope and null handling are unspecified, and AMB-004 leaves the early-window behaviour open.
+**Decision:**
+- The endpoint returns `{ "scope": ..., "window": 5, "sessions": [...] }`. Each session carries `session_id`, `created_at`, `mode`, `duration_limit_ms`, `net_wpm`, `accuracy_pct`, `moving_average_net_wpm` and `moving_average_accuracy_pct`.
+- `scope` defaults to `all`. Only `last_10`, `last_30` and `all` are accepted, compared exactly; any other value (including an empty string) returns `422 VALIDATION_ERROR` with `field: "scope"`, matching the existing query-parameter convention.
+- `SessionRepository.list_progress(limit)` selects the newest `10`/`30`/all rows ordered by `created_at DESC, id DESC` and returns them oldest first, so the chart runs forward in time while the scope still means "most recent N".
+- The moving average is a trailing window of `PROGRESS_MOVING_AVERAGE_WINDOW = 5` positions, expanding for the first 1–4 points (AMB-004). The window never crosses the scope boundary. `engine.metrics.trailing_moving_average()` computes it from stored values; `None` values are skipped rather than treated as zero and a point with no non-null value in its window stays `None`. This is an analytics aggregate, not a new stored session metric.
+- `/analytics` is a thin server-rendered shell with the three scope buttons, the two canvas containers, the "what to look for" line per chart and the empty state. `analytics-page.js` fetches the series and formats labels/values only; `charts.js` wraps Chart.js, reads CSS tokens and recolours every chart with `chart.update("none")` on `tba:themechange`. Existing chart instances are destroyed before a scope re-render.
+- Empty history shows "No sessions yet." and no chart is created. Null series values stay gaps (`spanGaps: false`), not zeroes.
+**Consequences:** AMB-004 is resolved. The page and API agree on one series shape, no schema change is needed, and the browser remains free of metric math. Adding the P1 IKI histogram is an additive endpoint/page section.
+
+### ADR-038: Sessions CSV export format and ownership
+**Date:** 2026-11-14
+**Status:** Approved
+**Context:** Blueprint §10 fixes `GET /api/export/sessions.csv` as UTF-8 with a BOM, a fixed column order, formula-injection guarding and empty cells for NULL metrics. It does not fix the row order, the line terminator, the filename, the content type, or how the values are rendered into text. Blueprint §12 places `exporters.py` and `routes/exports.py` in the folder structure, so serialisation and HTTP construction belong in separate modules.
+**Decision:**
+- Row order is newest first (`created_at DESC, id DESC`), matching the history list, and the export covers the whole stored set (no paging or query parameters).
+- `app/exporters.py` owns CSV serialisation: `csv.writer` with RFC 4180 CRLF line endings, `utf-8-sig` (BOM) output as `bytes`, the fixed blueprinted column tuple and the injection guard. `app/repository.py` owns a new `SessionExportRow` read shape and `list_export_rows()`; the route only calls both and builds the response.
+- Every non-NULL value is rendered with `str()` unchanged — no rounding, re-formatting or metric recomputation, so the file agrees with the stored record. NULL becomes an empty cell.
+- The injection guard is applied to every cell after rendering: any text starting with `=`/`+`/`-`/`@` gets a leading `'`. This also catches negative numbers, which the blueprint's rule covers literally.
+- The route lives in `app/routes/exports.py` (`exports` blueprint, `/api/export`) and returns `Content-Type: text/csv; charset=utf-8` with `Content-Disposition: attachment; filename="sessions.csv"`.
+- An empty database returns `200` with the BOM and the header row only. The endpoint takes no parameters, so it has no error path of its own.
+**Consequences:** The download is safe to open in spreadsheet software, agrees byte-for-byte with stored values, and keeps SQL, serialisation and HTTP in their documented layers. Adding the P1 events export reuses the same exporter/route split with a different column set.
+
 ---
 
 ## Open Ambiguities
@@ -409,6 +475,7 @@ P0-D1-05 will map expected characters through `CHAR_TO_CODE` and merge the two m
 
 ### AMB-004: Moving average in progress chart — window or cumulative?
 **Date:** 2026-11-06
-**Status:** Open
+**Status:** Resolved by ADR-037 (2026-11-14)
 **Context:** The blueprint says "5-session moving average" but does not specify whether this is a trailing window average or an expanding average for early sessions (fewer than 5).
 **Decision:** Use a **trailing window** of 5 sessions. For the first 1–4 sessions, use all available sessions (expanding window). This is the conventional interpretation. Log here if changed.
+**Resolution:** Implemented in `engine.metrics.trailing_moving_average()` with the window scoped to the selected sessions; see ADR-037.

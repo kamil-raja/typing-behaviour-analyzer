@@ -1,9 +1,9 @@
 """JSON API routes.
 
-The text endpoint contracts are fixed by ADR-029. ``POST /api/sessions`` is the
-first vertical slice: it parses the payload, delegates validation to
-``app.validators``, resolves the text through ``app.texts``, runs the pure
-engine, stores the result in memory and returns the documented response shape.
+The text endpoint contracts are fixed by ADR-029. ``POST /api/sessions`` parses
+the payload, delegates validation to ``app.validators``, resolves the text
+through ``app.texts``, runs the pure engine and persists the result through
+``app.repository`` before returning the documented response shape.
 
 Routes contain no metric math and no SQL.
 """
@@ -19,25 +19,31 @@ from typing import Any
 from flask import Blueprint, Response, current_app, jsonify, request, url_for
 
 from ..config import (
-    ANALYSIS_VERSION,
+    HISTORY_PAGE_SIZE,
     MAX_SESSION_BODY_BYTES,
+    PROGRESS_DEFAULT_SCOPE,
+    PROGRESS_MOVING_AVERAGE_WINDOW,
+    PROGRESS_SCOPES,
+    SESSION_LIST_MAX_LIMIT,
     SESSION_MIN_K,
     SESSION_MIN_T_MS,
     WORD_COUNT_MAX,
     WORD_COUNT_MIN,
 )
 from ..engine import analyze_session
+from ..engine.metrics import trailing_moving_average
 from ..engine.replay import END_COMPLETED, InvalidEventSequence
 from ..errors import (
     INCOMPLETE_SESSION,
     INVALID_EVENT_SEQUENCE,
     INVALID_JSON,
+    NOT_FOUND,
     PAYLOAD_TOO_LARGE,
     SESSION_TOO_SHORT,
     VALIDATION_ERROR,
     json_error,
 )
-from ..session_store import STORE_EXTENSION_KEY, InMemorySessionStore, StoredSession
+from ..repository import STORE_EXTENSION_KEY, SessionRecord, SessionRepository
 from ..texts import (
     TextNotFoundError,
     generate_words,
@@ -55,6 +61,7 @@ api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 PASSAGE_LABEL_LENGTH = 40
 _COUNT_PATTERN = re.compile(r"[0-9]{1,3}")
+_PAGINATION_PATTERN = re.compile(r"[0-9]{1,9}")
 _SEED_LIMIT = 2**31
 
 
@@ -81,35 +88,75 @@ def _invalid_count(problem: str) -> tuple[Response, int]:
     )
 
 
-def _session_metrics(record: StoredSession) -> dict[str, Any]:
-    """Shape the authoritative engine metrics for the submission response.
+def _invalid_pagination(field: str, problem: str) -> tuple[Response, int]:
+    """Return the documented validation error for the session list endpoint."""
+    return json_error(
+        VALIDATION_ERROR,
+        "A pagination query parameter is invalid.",
+        [{"field": field, "problem": problem}],
+        status=422,
+    )
 
-    This is serialisation only: every number comes from ``SessionMetrics`` or
-    the replay-derived session state.
+
+def _invalid_scope(problem: str) -> tuple[Response, int]:
+    """Return the documented validation error for the progress scope."""
+    return json_error(
+        VALIDATION_ERROR,
+        "The scope query parameter is invalid.",
+        [{"field": "scope", "problem": problem}],
+        status=422,
+    )
+
+
+def _session_metrics(record: SessionRecord) -> dict[str, Any]:
+    """Shape the persisted engine metrics for the submission response.
+
+    This is serialisation only: every number was computed by the engine before
+    the repository stored it and is read back unchanged.
     """
-    metrics = asdict(record.analysis.metrics)
+    metrics = asdict(record.metrics)
     metrics.update(
         {
             "mode": record.mode,
             "duration_limit_ms": record.duration_limit_ms,
-            "active_duration_ms": record.analysis.replay.active_duration_ms,
-            "end_reason": record.analysis.replay.end_reason,
-            "analysis_version": ANALYSIS_VERSION,
+            "active_duration_ms": record.active_duration_ms,
+            "end_reason": record.end_reason,
+            "analysis_version": record.analysis_version,
         }
     )
     return metrics
 
 
-def _session_warnings(record: StoredSession) -> list[dict[str, Any]]:
-    """Shape the engine's data-quality warnings for JSON."""
+def _session_warnings(record: SessionRecord) -> list[dict[str, Any]]:
+    """Shape the persisted data-quality warnings for JSON."""
     return [
         {
             "code": warning.code,
             "count": warning.count,
             "message": warning.message,
         }
-        for warning in record.analysis.warnings
+        for warning in record.warnings
     ]
+
+
+def _session_detail(record: SessionRecord) -> dict[str, Any]:
+    """Shape the stored session metadata; metrics and key stats are separate."""
+    return {
+        "session_id": record.session_id,
+        "created_at": record.created_at,
+        "schema_version": record.schema_version,
+        "mode": record.mode,
+        "duration_limit_ms": record.duration_limit_ms,
+        "text_ref": dict(record.text_ref),
+        "passage_text": record.passage_text,
+        "typed_text": record.typed_text,
+        "active_duration_ms": record.active_duration_ms,
+        "end_reason": record.end_reason,
+        "client": dict(record.client),
+        "layout_hint": record.layout_hint,
+        "analysis_version": record.analysis_version,
+        "warnings": _session_warnings(record),
+    }
 
 
 @api_bp.get("/texts/passages")
@@ -267,7 +314,7 @@ def create_session() -> Response | tuple[Response, int]:
     ):
         return json_error(
             SESSION_TOO_SHORT,
-            "This session is too short to save.",
+            "Too short to save.",
             [
                 {
                     "field": "events",
@@ -280,8 +327,8 @@ def create_session() -> Response | tuple[Response, int]:
             status=422,
         )
 
-    store: InMemorySessionStore = current_app.extensions[STORE_EXTENSION_KEY]
-    record = store.create(validated, analysis)
+    repository: SessionRepository = current_app.extensions[STORE_EXTENSION_KEY]
+    record = repository.create(validated, analysis)
 
     return (
         jsonify(
@@ -298,4 +345,104 @@ def create_session() -> Response | tuple[Response, int]:
             }
         ),
         201,
+    )
+
+
+@api_bp.get("/sessions")
+def list_sessions() -> Response | tuple[Response, int]:
+    """Return one newest-first page of stored sessions plus the exact total.
+
+    ``limit`` defaults to the history page size and is capped at
+    ``SESSION_LIST_MAX_LIMIT`` (blueprint §10). ``offset`` defaults to 0. Both
+    are validated here; pagination itself is a repository concern.
+    """
+    raw_limit = request.args.get("limit", str(HISTORY_PAGE_SIZE))
+    raw_offset = request.args.get("offset", "0")
+
+    if (
+        _PAGINATION_PATTERN.fullmatch(raw_limit) is None
+        or not 1 <= int(raw_limit) <= SESSION_LIST_MAX_LIMIT
+    ):
+        return _invalid_pagination(
+            "limit",
+            f"must be an integer between 1 and {SESSION_LIST_MAX_LIMIT}",
+        )
+
+    if _PAGINATION_PATTERN.fullmatch(raw_offset) is None:
+        return _invalid_pagination("offset", "must be a non-negative integer")
+
+    repository: SessionRepository = current_app.extensions[STORE_EXTENSION_KEY]
+    items, total = repository.list_sessions(
+        limit=int(raw_limit),
+        offset=int(raw_offset),
+    )
+    return jsonify(
+        {
+            "items": [asdict(item) for item in items],
+            "total": total,
+        }
+    )
+
+
+@api_bp.get("/analytics/progress")
+def get_progress() -> Response | tuple[Response, int]:
+    """Return the stored WPM/accuracy series and its moving average.
+
+    The repository selects the scoped rows; the engine computes the trailing
+    average. The route only validates the scope and shapes the response.
+    """
+    raw_scope = request.args.get("scope", PROGRESS_DEFAULT_SCOPE)
+    if raw_scope not in PROGRESS_SCOPES:
+        return _invalid_scope(
+            f"must be one of {', '.join(PROGRESS_SCOPES)}"
+        )
+
+    repository: SessionRepository = current_app.extensions[STORE_EXTENSION_KEY]
+    points = repository.list_progress(PROGRESS_SCOPES[raw_scope])
+    net_average = trailing_moving_average(
+        [point.net_wpm for point in points],
+        PROGRESS_MOVING_AVERAGE_WINDOW,
+    )
+    accuracy_average = trailing_moving_average(
+        [point.accuracy_pct for point in points],
+        PROGRESS_MOVING_AVERAGE_WINDOW,
+    )
+
+    sessions: list[dict[str, Any]] = []
+    for index, point in enumerate(points):
+        item = asdict(point)
+        item["moving_average_net_wpm"] = net_average[index]
+        item["moving_average_accuracy_pct"] = accuracy_average[index]
+        sessions.append(item)
+
+    return jsonify(
+        {
+            "scope": raw_scope,
+            "window": PROGRESS_MOVING_AVERAGE_WINDOW,
+            "sessions": sessions,
+        }
+    )
+
+
+@api_bp.get("/sessions/<session_id>")
+def get_session(session_id: str) -> Response | tuple[Response, int]:
+    """Return one stored session's metadata, metrics and per-key sums."""
+    repository: SessionRepository = current_app.extensions[STORE_EXTENSION_KEY]
+    record = repository.get(session_id)
+    if record is None:
+        return json_error(
+            NOT_FOUND,
+            "Session not found.",
+            [{"field": "session_id", "problem": "does not exist"}],
+            status=404,
+        )
+
+    return jsonify(
+        {
+            "session": _session_detail(record),
+            "metrics": asdict(record.metrics),
+            "key_stats": [
+                asdict(stat) for stat in repository.get_key_stats(session_id)
+            ],
+        }
     )

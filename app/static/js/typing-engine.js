@@ -136,11 +136,19 @@ export function createTypingEngine({
     }
 
     const safeLineHeight = lineHeight || measureLineHeight();
-    caretEl.style.transform = `translate(${left}px, ${top}px)`;
+    // Inline spans report the top of their content box, which sits inside the
+    // taller line box. Anchor the caret to the line box itself so it matches
+    // the row of text exactly and does not overhang the following line.
+    const lineIndex = Math.max(
+      0,
+      Math.round((top - spans[0].offsetTop) / safeLineHeight),
+    );
+    const lineTop = lineIndex * safeLineHeight;
+
+    caretEl.style.transform = `translate(${left}px, ${lineTop}px)`;
     caretEl.style.height = `${safeLineHeight}px`;
 
-    const caretLine = Math.round(top / safeLineHeight);
-    const shift = Math.max(0, caretLine - 1) * safeLineHeight;
+    const shift = Math.max(0, lineIndex - 1) * safeLineHeight;
     track.style.transform = `translateY(-${shift}px)`;
   }
 
