@@ -293,7 +293,9 @@ def test_short_time_session_is_rejected(
     response = client.post("/api/sessions", json=_payload(_words_ref(), events))
 
     assert response.status_code == 422
-    assert response.get_json()["error"]["code"] == "SESSION_TOO_SHORT"
+    error = response.get_json()["error"]
+    assert error["code"] == "SESSION_TOO_SHORT"
+    assert error["message"] == "Too short to save."
     assert _store(app).count() == 0
 
 

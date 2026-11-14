@@ -1,15 +1,15 @@
 # PROGRESS.md — Project Status
 
-> Updated: 2026-11-06
-> Branch: `feature/project-foundation`
+> Updated: 2026-11-14
+> Branch: `database-version`
 
 ---
 
 ## Current Status
 
-**Phase: Implementation in progress — P0-D1-01 through P0-D1-10 and P0-D2-01 through P0-D2-04 complete.**
+**Phase: Implementation in progress — P0-D1-01 through P0-D1-10 and P0-D2-01 through P0-D2-05 complete.**
 
-Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic, the session-payload validator, text resolution, the frontend theme foundation, keyboard capture and the live typing screen now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. `app/texts.py` resolves passages and deterministic word-mode text and guards all content at startup. The test screen is reachable at `GET /`, loads time-mode words or a passage through the documented text API, and shows clearly-labelled provisional stats. Esc restarts, Tab is never intercepted, focus loss cancels, and a full buffer with errors blocks completion. A finished attempt now submits the complete accepted event sequence to `POST /api/sessions`, which validates it, resolves the text, replays it in the pure engine and returns the authoritative metrics plus a results link. `GET /results/<session_id>` renders those server-computed numbers from the SQLite repository. `GET /api/sessions?limit=&offset=` and `/history` list saved sessions newest first, 25 per page, with row navigation to the results page. Typing-screen polish, analytics and the heatmap remain.
+Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic, the session-payload validator, text resolution, the frontend theme foundation, keyboard capture and the live typing screen now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. `app/texts.py` resolves passages and deterministic word-mode text and guards all content at startup. The test screen is reachable at `GET /`, loads time-mode words or a passage through the documented text API, and shows clearly-labelled provisional stats. Esc restarts, Tab is never intercepted, focus loss cancels, and a full buffer with errors blocks completion. A finished attempt now submits the complete accepted event sequence to `POST /api/sessions`, which validates it, resolves the text, replays it in the pure engine and returns the authoritative metrics plus a results link. `GET /results/<session_id>` renders those server-computed numbers from the SQLite repository. `GET /api/sessions?limit=&offset=` and `/history` list saved sessions newest first, 25 per page, with row navigation to the results page. The typing screen matches `docs/UI_DESIGN.md` §4: token-based character states, a caret anchored to the second visible line with scroll-follows-caret, a provisional live row that stays hidden until the first keystroke, the full config strip, the documented state messages and focus handling. Progress charts and the heatmap remain.
 
 ---
 
@@ -183,8 +183,20 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 - [x] Recorded ADR-036 (list item shape, pagination defaults/limits, client-rendered page, row navigation)
 - [x] `pytest tests/ -q`: **486 passed** (474 previous + 12 new)
 
+### Typing screen polish (2026-11-14)
+- [x] P0-D2-05: verified every `docs/UI_DESIGN.md` §4 state against the live page before changing code
+- [x] Fixed the caret alignment in `app/static/js/typing-engine.js`: the caret is now anchored to the line box (line index derived from the first span's `offsetTop`) instead of the inline content box, so it no longer overhangs the following line; the track still keeps the caret on visible line 2
+- [x] Confirmed untyped/correct/incorrect character states and the 2 px accent caret use tokens only; untyped = muted, correct = text, incorrect = error + underline + `--error-bg`, caret blinking only when idle
+- [x] Confirmed the live row stays hidden until the first keystroke, carries the `provisional` badge, and shows timer/WPM/accuracy
+- [x] Confirmed the config strip (mode toggle, 15/30/60, passage selector), the documented fix-highlighted and focus-loss messages, and Esc-returns-to-idle
+- [x] Aligned the too-short copy with `docs/UI_DESIGN.md` §4: `SESSION_TOO_SHORT` now says "Too short to save."
+- [x] Confirmed auto-focus on load and re-focus after every config change (including the passage selector)
+- [x] Added `tests/test_typing_screen.py` (7 contracts: config strip, hidden provisional live row, three-line focusable viewport, token character/caret states, engine state classes and fix message, caret line anchoring, focus defaults) and tightened the existing too-short test to assert the documented message
+- [x] Browser verification of the rendered states, config strip, caret line position (with the transition disabled to measure the final layout), provisional row, fix message, too-short message, Esc reset and the focus-loss cancellation handler; the desktop window could not receive native keystrokes, so input was dispatched through DOM keyboard events
+- [x] `pytest tests/ -q`: **493 passed** (486 previous + 7 new)
+
 ### Application code
-- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, P0-D1-09 typing screen, P0-D1-10 session submission, P0-D2-01 schema, P0-D2-02 persistence, P0-D2-03 session retrieval API and the three-tier results page, P0-D2-04 history list and page; analytics and heatmap pages are still pending
+- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, P0-D1-09 typing screen, P0-D1-10 session submission, P0-D2-01 schema, P0-D2-02 persistence, P0-D2-03 session retrieval API and the three-tier results page, P0-D2-04 history list and page, P0-D2-05 typing-screen polish; progress charts, CSV export and the heatmap pages are still pending
 
 ---
 
@@ -206,7 +218,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 | P0-D2-02: Repository and persistence | ✅ Complete (2026-11-09) — `app/repository.py` + repository-backed routes (ADR-034) |
 | P0-D2-03: Results page (full) | ✅ Complete (2026-11-10) — API (ADR-035) + three-tier UI with tooltips |
 | P0-D2-04: History page | ✅ Complete (2026-11-14) — list API (ADR-036) + paginated `/history` page |
-| P0-D2-05: Typing screen polish | ⬜ Not started |
+| P0-D2-05: Typing screen polish | ✅ Complete (2026-11-14) — caret line anchoring + documented state messages |
 | P0-D2-06: Progress endpoint and analytics charts | ⬜ Not started |
 | P0-D2-07: sessions.csv export | ⬜ Not started |
 | P0-D3-01: Key stats aggregation and heatmap API | ⬜ Not started |
@@ -219,9 +231,9 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 
 ## Next Milestone
 
-**Day 2:** database-backed persistence, the full results page and the history page are complete. Next is typing-screen polish.
+**Day 2:** database-backed persistence, the full results page, the history page and the typing-screen polish pass are complete. Next are the progress charts and the CSV export.
 
-Exact next task: **P0-D2-05** — typing-screen polish (passage caret/character states and scroll-follows-caret, provisional live row, config strip, state messages, focus behaviour), followed by P0-D2-06 progress charts.
+Exact next task: **P0-D2-06** — progress endpoint and analytics charts, followed by P0-D2-07 (CSV export).
 
 ---
 

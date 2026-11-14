@@ -300,7 +300,7 @@ def create_session() -> Response | tuple[Response, int]:
     ):
         return json_error(
             SESSION_TOO_SHORT,
-            "This session is too short to save.",
+            "Too short to save.",
             [
                 {
                     "field": "events",

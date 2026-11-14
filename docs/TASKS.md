@@ -192,12 +192,15 @@
 - [x] **Commit (deferred):** `feat(history): list endpoint and paginated history page` — not performed; commits require explicit approval (ADR-036)
 
 ### P0-D2-05: Typing screen polish
-- [ ] Passage viewport: caret rendering, character state rendering (untyped/correct/incorrect/caret), scroll-follows-caret (line 2)
-- [ ] Live row: hidden until first keystroke, labelled *provisional*
-- [ ] Config strip: mode toggle, time options (15/30/60), passage selector
-- [ ] All state messages: fix-highlighted, too-short, cancelled-by-focus-loss
-- [ ] Focus behaviour: auto-focus on load, re-focus after config changes
-- [ ] **Acceptance:** manual check per `docs/UI_DESIGN.md` §4
+> **Status (2026-11-14):** Complete — verified against `docs/UI_DESIGN.md` §4. Caret line alignment fixed; the too-short copy now matches the documented message.
+- [x] Passage viewport: caret rendering, character state rendering (untyped/correct/incorrect/caret), scroll-follows-caret (line 2)
+- [x] Live row: hidden until first keystroke, labelled *provisional*
+- [x] Config strip: mode toggle, time options (15/30/60), passage selector
+- [x] All state messages: fix-highlighted, too-short, cancelled-by-focus-loss
+- [x] Focus behaviour: auto-focus on load, re-focus after config changes
+- [x] **Acceptance:** manual check per `docs/UI_DESIGN.md` §4
+- [x] **Files touched:** `app/static/js/typing-engine.js`, `app/routes/api.py`, `tests/test_sessions.py`, `tests/test_typing_screen.py` (new), `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- **Commit (deferred):** `feat(test): polish typing screen caret and state messages` — not performed; commits require explicit approval
 
 ### P0-D2-06: Progress endpoint and analytics charts
 - [ ] Implement `GET /api/analytics/progress?scope=` returning sessions with `net_wpm`, `accuracy_pct`, moving average
