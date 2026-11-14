@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}History · Typing Behaviour Analyzer{% endblock %}
+{% block description %}Your saved typing sessions, newest first.{% endblock %}
+{% block body_class %}page-history{% endblock %}
+
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="history" data-history-root data-page-size="{{ page_size }}" aria-labelledby="history-heading">
+  <header class="results__header">
+    <p class="results__eyebrow">History</p>
+    <h1 class="page-title" id="history-heading">Session history</h1>
+    <p class="page-lede">Your saved sessions, newest first. Select a row to open its results.</p>
+  </header>
+
+  <p class="history__status" role="status" data-history-status>Loading sessions…</p>
+
+  <div class="history__empty notice" data-history-empty hidden>
+    <p>No sessions yet. Take a typing test to see your history here.</p>
+    <p class="history__empty-action">
+      <a class="button button--primary" href="{{ url_for('pages.test_page') }}">Take a test</a>
+    </p>
+  </div>
+
+  <div class="history__table-wrap">
+    <table class="history-table" data-history-table hidden>
+      <caption class="visually-hidden">Saved typing sessions</caption>
+      <thead>
+        <tr>
+          <th scope="col">Date/time</th>
+          <th scope="col">Mode</th>
+          <th scope="col">Duration</th>
+          <th scope="col">Net WPM</th>
+          <th scope="col">Accuracy</th>
+          <th scope="col">Consistency</th>
+        </tr>
+      </thead>
+      <tbody data-history-rows></tbody>
+    </table>
+  </div>
+
+  <nav class="pagination" data-history-pagination aria-label="History pagination" hidden>
+    <button class="button" type="button" data-history-prev>Previous</button>
+    <p class="pagination__status numeric" data-history-page-status></p>
+    <button class="button" type="button" data-history-next>Next</button>
+  </nav>
+</section>
+{% endblock %}
+
+{% block scripts %}
+  <script type="module" src="{{ url_for('static', filename='js/history-page.js') }}"></script>
+{% endblock %}

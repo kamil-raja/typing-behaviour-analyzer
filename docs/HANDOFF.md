@@ -30,7 +30,7 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 
 ---
 
-## Current State (as of 2026-11-10)
+## Current State (as of 2026-11-14)
 
 ### Development server (Windows)
 
@@ -52,12 +52,38 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 | Field | Value |
 |---|---|
 | **Branch** | `database-version` (in sync with `origin/database-version`) |
-| **Status** | Uncommitted P0-D2-03 work: modified `app/routes/api.py`, `app/templates/results.html`, `app/static/css/components.css`, `tests/test_sessions.py`, `tests/test_infrastructure.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`; new `app/static/js/results-page.js` |
-| **Last commit** | `4992846 feat(db): persistence — single-transaction save and round-trip tests` (P0-D2-02) |
+| **Status** | Uncommitted P0-D2-04 work: modified `app/config.py`, `app/repository.py`, `app/routes/api.py`, `app/routes/pages.py`, `app/templates/base.html`, `app/static/css/components.css`, `tests/test_sessions.py`, `tests/test_repository.py`, `tests/test_infrastructure.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`; new `app/templates/history.html`, `app/static/js/history-page.js` |
+| **Last commit** | `661200f feat(results): complete session retrieval and analysis dashboard` (P0-D2-03) |
 | **Tags** | None yet |
-| **Commit/push** | **None performed by this agent.** P0-D1-01–P0-D1-10 were committed as `9c02975`, `147ec1e`, `e9e2215`, `61d8c36`, `55130e1`, `1c0137a`, `4599be0`, `3cc8a56`, `20864ab`, `40e41dc`; the dev-server fix as `8a940b4`; P0-D2-01 as `8b1e811`; P0-D2-02 as `4992846` (all committed externally). This agent composes working-tree changes only. |
+| **Commit/push** | **None performed by this agent.** P0-D1-01–P0-D1-10 were committed as `9c02975`, `147ec1e`, `e9e2215`, `61d8c36`, `55130e1`, `1c0137a`, `4599be0`, `3cc8a56`, `20864ab`, `40e41dc`; the dev-server fix as `8a940b4`; P0-D2-01 as `8b1e811`; P0-D2-02 as `4992846`; P0-D2-03 as `661200f` (all committed externally). This agent composes working-tree changes only. |
 
 `.venv/`, `__pycache__/`, and `instance/` (including `instance/typing.db` created by the first-run check) are ignored and are not part of the working-tree changes.
+
+### Completed This Session — P0-D2-04 History page
+
+| File | Purpose |
+|---|---|
+| `app/config.py` | `HISTORY_PAGE_SIZE = 25`, `SESSION_LIST_MAX_LIMIT = 100` |
+| `app/repository.py` | `SessionSummary` gains `consistency_score`; the list query reads `session_metrics.consistency_score` (still the only SQL owner) |
+| `app/routes/api.py` | `GET /api/sessions?limit=&offset=` returns `{items, total}`; limit defaults to 25 and is validated 1..100, offset defaults to 0 and must be non-negative; invalid values are `422 VALIDATION_ERROR` with `field` `limit`/`offset` |
+| `app/routes/pages.py` | `GET /history` renders `history.html` with `page_size` |
+| `app/templates/history.html` | Six-column table shell (date/time, mode, duration, net WPM, accuracy, consistency), empty state, pagination controls, `data-page-size` |
+| `app/static/js/history-page.js` | Fetches one page at a time, formats stored values only, drives Previous/Next, shows the empty state, navigates rows to `/results/<id>` |
+| `app/templates/base.html` | `history` nav entry now uses `url_for('pages.history_page')` (ADR-028) |
+| `app/static/css/components.css` | History table, empty state and pagination styles; disabled button state; tokens only |
+| `tests/test_sessions.py` | 12 new cases: empty list, newest-first summaries with exact total, limit/offset paging, default 25-row page, six invalid pagination inputs, history page markup, script contract |
+| `tests/test_repository.py` | Paginated-list test now also asserts `consistency_score` |
+| `tests/test_infrastructure.py` | Static asset check includes `history-page.js` |
+| `docs/DECISIONS.md` | ADR-036 (list item shape, pagination defaults/limits, client-rendered page, row navigation) |
+
+- `items` is `SessionSummary` serialised with `asdict`: `session_id`, `created_at`, `mode`, `duration_limit_ms`, `active_duration_ms`, `end_reason`, `net_wpm`, `accuracy_pct`, `consistency_score`. `total` is the exact stored count.
+- Pagination is server-bounded: `limit` 1–100 (digits-only regex), `offset` ≥ 0. The default limit is the history page size, so `/<history>` and a bare API call agree.
+- `/history` is a thin shell; `history-page.js` fetches `/api/sessions?limit=<pageSize>&offset=<n>`. Page size reaches JavaScript through `data-page-size`, so 25 is defined once.
+- Row navigation uses a real `<a>` in the first cell (keyboard/screen-reader access) plus a row click listener that ignores inner links, so navigation is not duplicated.
+- Empty state is the documented `docs/UI_DESIGN.md` §8 text and only renders when `total == 0`; the table and controls stay hidden.
+- Chromium check against 30 seeded sessions: 25 rows on page 1 (`Page 1 of 2 · sessions 1-25 of 30`), page 2 shows 5 rows (`Page 2 of 2 · sessions 26-30 of 30`), Previous/Next disable correctly, a row click opens `/results/<id>`, and the only console error is the pre-existing `/favicon.ico` 404.
+- `pytest tests/ -q`: **486 passed** (474 previous + 12 new).
+- **P0-D2-04 is complete.**
 
 ### Completed This Session — P0-D2-03 (part 2) Results page UI
 
@@ -320,10 +346,11 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 ### Verification
 
-- `python -m pytest tests\ -q`: **474 passed** (7 fixture-structure checks, 1 fixture-G check, 2 conftest fixture checks, 2 infrastructure checks, 18 API/page cases, 24 replay tests, 57 metric tests, 33 key tests, 190 validator cases, 76 text-resolution cases, 25 vertical-slice cases, 25 schema/connection cases, 10 repository tests, 2 results-UI contracts). The vertical-slice and results-UI cases cover session detail, tooltips, data quality and conditional `Eu`.
+- `python -m pytest tests\ -q`: **486 passed** (7 fixture-structure checks, 1 fixture-G check, 2 conftest fixture checks, 2 infrastructure checks, 18 API/page cases, 24 replay tests, 57 metric tests, 33 key tests, 190 validator cases, 76 text-resolution cases, 37 vertical-slice/history cases, 25 schema/connection cases, 10 repository tests, 2 results-UI contracts). The session cases cover detail, history pagination, tooltips, data quality and conditional `Eu`.
 - `GET /` returns **200** and renders `test.html`. `GET /api/texts/passages`, `/api/texts/passages/p_001` and `/api/texts/words?count=200` all return **200** with the ADR-029 shapes; unknown passages return **404 TEXT_NOT_FOUND**; invalid counts return **422 VALIDATION_ERROR** with `field: "count"`.
 - `POST /api/sessions` returns **201** with the documented `{session_id, metrics, warnings, links}` shape; malformed JSON is **400 INVALID_JSON**, schema failures are **422 VALIDATION_ERROR**, oversized bodies are **413 PAYLOAD_TOO_LARGE**, unknown passages are **404 TEXT_NOT_FOUND**, invalid sequences are **422 INVALID_EVENT_SEQUENCE**, incomplete passages are **422 INCOMPLETE_SESSION**, and short sessions are **422 SESSION_TOO_SHORT**.
 - `GET /api/sessions/<id>` returns **200** with `{ session, metrics, key_stats }` (ADR-035); an unknown id returns **404 NOT_FOUND** with `field: "session_id"`. The route reads only through `SessionRepository.get()`/`get_key_stats()`.
+- `GET /api/sessions?limit=&offset=` returns **200** with `{ items, total }` (ADR-036); `limit` defaults to 25 and accepts 1–100, `offset` defaults to 0; invalid values return **422 VALIDATION_ERROR** with `field` `limit` or `offset`. `GET /history` returns **200**, renders the six-column table shell, the empty state text and the pagination controls, and loads `js/history-page.js`. Chromium check against 30 seeded sessions: 25 rows on page 1, 5 on page 2, correct disabled states, row click opens `/results/<id>`.
 - `GET /results/<id>` renders the persisted server metrics from `SessionRecord`; an unknown id returns **404**. The results template distinguishes unavailable (`—`) from zero, shows `Eu` only when non-zero, and shows the Data quality section only when warnings exist or `zero_interval_count > 0`. Every metric label carries an accessible `?` tooltip (`button[data-metric-help]` + `role="tooltip"`), wired by `app/static/js/results-page.js`.
 - `POST /api/sessions` saves all four table shapes in one transaction and the 201 response is serialised from the persisted record (`SessionRepository.get()`), so response, page and database hold identical numbers. A mid-save failure leaves the database untouched (rollback test).
 - Chromium check against the running Flask server: 15 s time flow (Start → Type → Finish → Submit → Results → New test) and full 242-character passage completion both reached the results page with server-computed numbers, the timing-honesty note, the data-quality section where applicable, and working New test links; zero console errors.
@@ -331,31 +358,31 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 - The final keyup of the completing keystroke is not captured because capture listeners are removed on finish. This is deliberate per `docs/EVENT_SCHEMA.md` §5 and is covered by the server's tolerated `open_at_end` condition.
 - `app/routes/api.py` contains no metric math and no SQL; it delegates every text lookup/generation to `app/texts.py`.
 - `app/static/js/results-page.js` contains no fetching and no metric math; it only manages tooltip ARIA state and dismissal. The page stays server-rendered from the persisted record.
-- `tests/` now contains the conftest, seven golden JSON fixtures, fixture checks, replay tests, metric tests, key-map/classification tests, validator tests, text-resolution tests, API/page tests and the frontend smoke checks.
+- `app/static/js/history-page.js` fetches the list API and formats stored values only (date locale, unit suffixes, one-decimal rounding); it computes no metric. `app/routes/api.py` contains no SQL for the list either — it delegates to `SessionRepository.list_sessions()`.
+- `tests/` now contains the conftest, seven golden JSON fixtures, fixture checks, replay tests, metric tests, key-map/classification tests, validator tests, text-resolution tests, API/page tests, session/history tests and the frontend smoke checks.
 - No compatibility issues with Python 3.14.7.
 
 ---
 
 ## Exact Next Task
 
-**Task ID:** P0-D2-04
-**Title:** History page
+**Task ID:** P0-D2-05
+**Title:** Typing screen polish
 
 **Scope (from `docs/TASKS.md`):**
-1. Implement `GET /api/sessions?limit=&offset=` returning `{ items, total }`.
-2. Implement `app/templates/history.html` and `app/static/js/history-page.js`.
-3. 25 rows per page with pagination controls.
-4. Row click navigates to `/results/<id>`.
-5. Empty state: "No sessions yet."
-6. **Acceptance:** history lists correctly; pagination works; row click navigates.
+1. Passage viewport: caret rendering, character state rendering (untyped/correct/incorrect/caret), scroll-follows-caret (line 2).
+2. Live row: hidden until first keystroke, labelled *provisional*.
+3. Config strip: mode toggle, time options (15/30/60), passage selector.
+4. All state messages: fix-highlighted, too-short, cancelled-by-focus-loss.
+5. Focus behaviour: auto-focus on load, re-focus after config changes.
+6. **Acceptance:** manual check per `docs/UI_DESIGN.md` §4.
 
 **Starting point:**
-- P0-D2-03 is complete: `GET /api/sessions/<id>` returns `{ session, metrics, key_stats }` (ADR-035) and `/results/<id>` renders the persisted session through the three-tier template with accessible metric tooltips.
-- `SessionRepository.list_sessions(limit, offset)` already returns newest-first summaries plus the exact total, so the history endpoint is mostly serialisation.
-- `app/repository.py` remains the single SQL owner; do not put SQL or metric math in routes.
-- Reuse `components.css` and the existing page patterns (`app/routes/pages.py`, `app/static/js/test-page.js`) rather than inventing a new surface.
-- The literal nav path `/history` in `base.html` should become `url_for` once the page endpoint exists (ADR-028).
-- `pytest tests/ -q`: **474 passed**.
+- P0-D2-04 is complete: `GET /api/sessions?limit=&offset=` returns `{ items, total }` (ADR-036) and `/history` lists saved sessions 25 per page with row navigation.
+- The typing screen already captures events, renders three lines with a caret, follows the caret when it leaves the second line, and shows the fix-highlighted, cancelled and full-buffer messages. P0-D2-05 is a polish/verification pass against `docs/UI_DESIGN.md` §4 — check every listed state before adding code.
+- Keep metric math on the server: the live row is provisional only (ADR-032/ADR-036 pattern). Do not persist live estimates.
+- `app/repository.py` remains the single SQL owner; routes stay free of SQL and metric math.
+- `pytest tests/ -q`: **486 passed**.
 - Do not commit or push without approval.
 
 ---
@@ -369,11 +396,11 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 5. **`docs/UI_DESIGN.md` §7** references `docs/METRICS.md` §6 for the Wilson heuristic; it should be §12. Correct during UI documentation cleanup.
 6. **`README.md`** is absent; leave for P0-D3-05.
 7. **`app/routes/__init__.py`** now exists as the route package docstring; `pages.py` and `api.py` live beside it and are registered in `create_app()`.
-8. **HEAD is `4992846 feat(db): persistence — single-transaction save and round-trip tests`** (P0-D2-02) on `database-version`, in sync with `origin/database-version`. The only uncommitted work is the complete P0-D2-03 (API + results-page UI, ADR-035) and its doc updates. Do not commit or push without approval.
+8. **HEAD is `661200f feat(results): complete session retrieval and analysis dashboard`** (P0-D2-03) on `database-version`, in sync with `origin/database-version`. The only uncommitted work is the complete P0-D2-04 (list API + history page, ADR-036) and its doc updates. Do not commit or push without approval.
 9. **Fixture A's IKI values are null by decision.** The §13 row's mean/SD arithmetic conflicts with §8.5; the author ruled §8.5 wins (ADR-023). Do not "fix" this by restoring `800.0`/`0.0`.
 10. **`session_key_stats` rows are now stored** with every session (`executemany` in the same transaction as the session row, ADR-034); `get_key_stats(id)` reads them back ordered by key code.
 11. **Heatmap classification is not yet wired to an endpoint.** `classify_observation()` and `pooled_baseline_error_rate()` are reused by P0-D3-01; do not duplicate the formula in routes or SQL.
-12. **The test page is live at `/`; `analytics`, `keyboard` and `history` still 404.** Those routes belong to later tasks, so the literal nav paths remain deliberate (ADR-028). Replace them with `url_for` as each page endpoint lands.
+12. **`/` and `/history` are live; `analytics` and `keyboard` still 404.** Those routes belong to later tasks, so their literal nav paths remain deliberate (ADR-028). Replace them with `url_for` as each page endpoint lands; `/history` already does.
 13. **Chart.js is vendored but not referenced by any template yet.** It stays unused until the analytics/chart pages (P0-D2-06); do not add it to `base.html`.
 14. **Only the latin font subsets are vendored.** All app content is ASCII 32–126. Out-of-subset glyphs use the documented fallback stacks; add subsets only with a new ADR and the corresponding licence/version note.
 15. **The inline theme script and `theme.js` deliberately split responsibilities.** First paint belongs to the inline script; later toggles belong to `theme.js`. Do not move the storage read into the module, or a reload will flash the wrong theme.
@@ -389,6 +416,7 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 25. **Schema matches blueprint §9 verbatim, with SQLite-specific CHECK nuances** (ADR-033): `sessions.duration_limit_ms` must be 15000/30000/60000 for `time` and NULL for `passage`; the constraint carries an explicit `IS NOT NULL` because SQLite treats a NULL CHECK result as passing. `PRAGMA user_version` is 1; there is no migration path — a mismatched non-zero version aborts startup with the documented remedy (delete `instance/typing.db` during development).
 26. **Test apps never touch the developer database.** The `app` fixture in `tests/conftest.py` passes `DATABASE` inside `tmp_path` via `create_app(test_config)`; keep this isolation for all future persistence work.
 27. **Results tooltips are progressive enhancement.** The template ships a `title` fallback plus a `role="tooltip"` panel; `results-page.js` assigns ids, sets `aria-describedby` and removes `title`. Do not replace this with `title`-only help text or move metric definitions into JavaScript — the definitions are documentation and belong in the template.
+28. **History pagination limits live in `app/config.py`** (`HISTORY_PAGE_SIZE = 25`, `SESSION_LIST_MAX_LIMIT = 100`). The page size reaches JavaScript only through `data-page-size`; do not hard-code 25 a second time. `SessionSummary` gained `consistency_score` for the documented table column (ADR-036) — keep it in the repository's list query. The list route validates `limit`/`offset` itself (digits-only, 1–100 / ≥ 0) and never accepts unbounded pages.
 
 ---
 

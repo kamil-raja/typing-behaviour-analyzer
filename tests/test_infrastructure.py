@@ -65,6 +65,7 @@ def test_frontend_assets_resolve(client: FlaskClient) -> None:
         "/static/js/typing-engine.js",
         "/static/js/test-page.js",
         "/static/js/results-page.js",
+        "/static/js/history-page.js",
         "/static/fonts/OFL-Lexend.txt",
         "/static/fonts/OFL-JetBrainsMono.txt",
     ]

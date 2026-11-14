@@ -406,6 +406,20 @@ P0-D1-05 will map expected characters through `CHAR_TO_CODE` and merge the two m
 - Unknown ids return `404 NOT_FOUND` in the documented error envelope. The route calls only `repository.get()` and `repository.get_key_stats()`.
 **Consequences:** The response exposes persisted values only, so the results page and API cannot disagree. The remaining P0-D2-03 UI can consume this shape; adding per-key means or `series.wpm` (P1) is an additive API change.
 
+### ADR-036: History list contract and client-rendered history page
+**Date:** 2026-11-14
+**Status:** Approved
+**Context:** P0-D2-04 needs `GET /api/sessions?limit=&offset=`, but blueprint §10 fixes only the `{ items, total }` envelope and the `limit ≤ 100` cap. It does not fix the default limit, the behaviour for invalid query values, or the item field set. `docs/UI_DESIGN.md` §8 requires a six-column table including consistency and 25 rows per page, while `SessionSummary` (ADR-034) carried only net WPM and accuracy. The task requires `history-page.js` but does not say whether the page is server-rendered or fetches the list.
+**Decision:**
+- `items` is one `SessionSummary` object per row with `session_id`, `created_at`, `mode`, `duration_limit_ms`, `active_duration_ms`, `end_reason`, `net_wpm`, `accuracy_pct` and `consistency_score`. `SessionSummary` gains `consistency_score` because the documented table needs it; the repository's list `SELECT` reads `session_metrics.consistency_score`. `total` is the exact count of all stored sessions.
+- `limit` defaults to `HISTORY_PAGE_SIZE = 25` and must be an integer from 1 to `SESSION_LIST_MAX_LIMIT = 100`. `offset` defaults to 0 and must be a non-negative integer. Both are validated against a digits-only pattern before reaching the repository; violations return `422 VALIDATION_ERROR` with `field` `"limit"` or `"offset"`, matching the existing words-endpoint convention.
+- `/history` is a thin server-rendered shell (`pages.history_page`) carrying the six column headers, the empty state and a page-size data attribute. `history-page.js` fetches `/api/sessions?limit=<pageSize>&offset=<offset>`, renders rows, and owns Previous/Next state. Page size travels through `data-page-size`, so the constant is not duplicated in JavaScript.
+- Rendering formats stored values only (`toFixed`/date locale); it computes no metric. Duration and mode labels are unit presentation of stored fields.
+- Each row carries a real `<a>` to `/results/<session_id>` in its first cell for keyboard and screen-reader navigation, plus a row-level click listener. A click on an inner link is left to the browser so navigation is not duplicated.
+- The empty state is the `docs/UI_DESIGN.md` §8 text and only appears when `total == 0`; the table and controls are hidden in that state.
+- `base.html` now resolves the history nav entry with `url_for('pages.history_page')` per ADR-028; the rendered path stays `/history`.
+**Consequences:** The list API, page and results page agree on the summary shape. Pagination is bounded server-side, so a client cannot request an unbounded page. Any future page size change is a single constant edit, and adding columns to the list is an additive `SessionSummary` change.
+
 ---
 
 ## Open Ambiguities

@@ -17,11 +17,13 @@ import pytest
 from flask import Flask
 from flask.testing import FlaskClient
 
-from app.config import MAX_SESSION_BODY_BYTES
+import app.repository as repository_module
+from app.config import HISTORY_PAGE_SIZE, MAX_SESSION_BODY_BYTES
 from app.engine import analyze_session
 from app.engine.keys import CHAR_TO_CODE
 from app.repository import STORE_EXTENSION_KEY, SessionRepository
 from app.texts import generate_words, get_passage
+from app.validators import ValidatedSessionPayload
 
 ROOT = Path(__file__).resolve().parents[1]
 WORDS_SEED = 20261106
@@ -686,3 +688,187 @@ def test_unknown_session_detail_is_not_found(client: FlaskClient) -> None:
     assert error["code"] == "NOT_FOUND"
     assert error["message"]
     assert error["details"][0]["field"] == "session_id"
+
+
+# --- History list (P0-D2-04) ----------------------------------------------
+
+
+def _validated_for(text: str) -> ValidatedSessionPayload:
+    """Build a validator-shaped 15-keystroke time-mode payload."""
+    events = _typing_events(text, typed_text=text[:15])
+    return ValidatedSessionPayload(
+        schema_version=1,
+        mode="time",
+        duration_limit_ms=30000,
+        text_ref=_words_ref(),
+        started_at="2026-11-06T10:05:00.000Z",
+        client={
+            "user_agent": "pytest",
+            "platform": "test",
+            "layout_hint": "unknown",
+        },
+        ignored={
+            "repeat_keydowns": 0,
+            "shortcuts": 0,
+            "unsupported_keys": 0,
+            "unsupported_chars": 0,
+            "paste_attempts": 0,
+        },
+        events=tuple(events),
+    )
+
+
+def test_session_list_is_empty_without_sessions(client: FlaskClient) -> None:
+    """An empty history returns the documented envelope and no items."""
+    response = client.get("/api/sessions")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"items": [], "total": 0}
+
+
+def test_session_list_returns_newest_first_summaries(
+    app: Flask,
+    client: FlaskClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The list carries the stored summary fields with the exact total."""
+    stamps = iter(f"2026-11-10T10:00:0{index}.000Z" for index in range(3))
+    monkeypatch.setattr(repository_module, "_utc_now_iso", lambda: next(stamps))
+
+    text = _words_text()
+    ids = []
+    for _ in range(3):
+        events = _typing_events(text, typed_text=text[:15])
+        submission = client.post("/api/sessions", json=_payload(_words_ref(), events))
+        ids.append(submission.get_json()["session_id"])
+
+    body = client.get("/api/sessions").get_json()
+
+    assert body["total"] == 3
+    assert [item["session_id"] for item in body["items"]] == list(reversed(ids))
+
+    stored = _store(app).get(ids[-1])
+    assert stored is not None
+    assert body["items"][0] == {
+        "session_id": stored.session_id,
+        "created_at": stored.created_at,
+        "mode": "time",
+        "duration_limit_ms": 30000,
+        "active_duration_ms": 30000.0,
+        "end_reason": "time_up",
+        "net_wpm": stored.metrics.net_wpm,
+        "accuracy_pct": stored.metrics.accuracy_pct,
+        "consistency_score": stored.metrics.consistency_score,
+    }
+
+
+def test_session_list_paginates_with_limit_and_offset(
+    client: FlaskClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """limit/offset select one page while total covers the whole set."""
+    stamps = iter(f"2026-11-10T10:00:0{index}.000Z" for index in range(3))
+    monkeypatch.setattr(repository_module, "_utc_now_iso", lambda: next(stamps))
+
+    text = _words_text()
+    ids = []
+    for _ in range(3):
+        events = _typing_events(text, typed_text=text[:15])
+        submission = client.post("/api/sessions", json=_payload(_words_ref(), events))
+        ids.append(submission.get_json()["session_id"])
+
+    first_page = client.get("/api/sessions?limit=2").get_json()
+    second_page = client.get("/api/sessions?limit=2&offset=2").get_json()
+
+    assert first_page["total"] == second_page["total"] == 3
+    assert [item["session_id"] for item in first_page["items"]] == [
+        ids[2],
+        ids[1],
+    ]
+    assert [item["session_id"] for item in second_page["items"]] == [ids[0]]
+
+
+def test_session_list_defaults_to_the_history_page_size(
+    app: Flask,
+    client: FlaskClient,
+) -> None:
+    """The default limit is the documented 25-row history page."""
+    text = _words_text()
+    payload = _validated_for(text)
+    analysis = analyze_session(text, "time", 30000, payload.events)
+    repository = _store(app)
+
+    for _ in range(HISTORY_PAGE_SIZE + 1):
+        repository.create(payload, analysis)
+
+    body = client.get("/api/sessions").get_json()
+
+    assert body["total"] == HISTORY_PAGE_SIZE + 1
+    assert len(body["items"]) == HISTORY_PAGE_SIZE
+
+
+@pytest.mark.parametrize(
+    ("query", "field"),
+    [
+        ("limit=0", "limit"),
+        ("limit=101", "limit"),
+        ("limit=abc", "limit"),
+        ("limit=-1", "limit"),
+        ("offset=abc", "offset"),
+        ("offset=-1", "offset"),
+    ],
+)
+def test_session_list_rejects_invalid_pagination(
+    client: FlaskClient,
+    query: str,
+    field: str,
+) -> None:
+    """Out-of-range or non-numeric pagination values are VALIDATION_ERROR."""
+    response = client.get(f"/api/sessions?{query}")
+
+    assert response.status_code == 422
+    error = response.get_json()["error"]
+    assert error["code"] == "VALIDATION_ERROR"
+    assert error["details"][0]["field"] == field
+
+
+def test_history_page_renders_table_pagination_and_empty_state(
+    client: FlaskClient,
+) -> None:
+    """GET /history serves the six-column table, controls and empty state."""
+    response = client.get("/history")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+
+    for heading in (
+        "Date/time",
+        "Mode",
+        "Duration",
+        "Net WPM",
+        "Accuracy",
+        "Consistency",
+    ):
+        assert heading in html
+
+    assert 'data-page-size="25"' in html
+    assert 'aria-label="History pagination"' in html
+    assert "No sessions yet. Take a typing test to see your history here." in html
+    assert "js/history-page.js" in html
+    assert "css/components.css" in html
+    assert 'href="/history"' in html
+
+
+def test_history_page_script_fetches_pages_and_opens_results() -> None:
+    """history-page.js fetches the list and navigates rows to their results."""
+    source = (ROOT / "app" / "static" / "js" / "history-page.js").read_text(
+        encoding="utf-8"
+    )
+
+    assert "fetch(`/api/sessions?limit=${pageSize}&offset=${offset}`)" in source
+    assert "window.location.assign(resultsHref(item.session_id))" in source
+    assert '`/results/${encodeURIComponent(sessionId)}`' in source
+    assert 'event.target.closest("a")' in source
+    assert "data-history-prev" in source
+    assert "data-history-next" in source
+    assert "pageSize" in source

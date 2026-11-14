@@ -181,12 +181,15 @@
 - [x] **Commit (deferred):** `feat(results): three-tier results page with metric tooltips` — not performed; commits require explicit approval
 
 ### P0-D2-04: History page
-- [ ] Implement `GET /api/sessions?limit=&offset=` returning `{ items, total }`
-- [ ] Implement `app/templates/history.html` and `app/static/js/history-page.js`
-- [ ] 25 rows per page, pagination controls
-- [ ] Row click navigates to `/results/<id>`
-- [ ] Empty state: "No sessions yet."
-- [ ] **Acceptance:** history lists correctly; pagination works; row click navigates
+> **Status (2026-11-14):** Complete — list API (ADR-036), `/history` page and client-side pagination.
+- [x] Implement `GET /api/sessions?limit=&offset=` returning `{ items, total }`
+- [x] Implement `app/templates/history.html` and `app/static/js/history-page.js`
+- [x] 25 rows per page, pagination controls
+- [x] Row click navigates to `/results/<id>`
+- [x] Empty state: "No sessions yet."
+- [x] **Acceptance:** history lists correctly; pagination works; row click navigates. `pytest tests/ -q`: **486 passed**; Chromium verified 25 rows, page 2 of 2, disabled control states and row navigation.
+- [x] **Files touched:** `app/config.py`, `app/repository.py`, `app/routes/api.py`, `app/routes/pages.py`, `app/templates/base.html`, `app/templates/history.html`, `app/static/js/history-page.js`, `app/static/css/components.css`, `tests/test_sessions.py`, `tests/test_repository.py`, `tests/test_infrastructure.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- [x] **Commit (deferred):** `feat(history): list endpoint and paginated history page` — not performed; commits require explicit approval (ADR-036)
 
 ### P0-D2-05: Typing screen polish
 - [ ] Passage viewport: caret rendering, character state rendering (untyped/correct/incorrect/caret), scroll-follows-caret (line 2)

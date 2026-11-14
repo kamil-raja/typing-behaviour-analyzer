@@ -137,6 +137,7 @@ class SessionSummary:
     end_reason: str
     net_wpm: float | None
     accuracy_pct: float | None
+    consistency_score: float | None
 
 
 def _utc_now_iso() -> str:
@@ -445,7 +446,8 @@ class SessionRepository:
             ).fetchone()[0]
             rows = connection.execute(
                 "SELECT s.id, s.created_at, s.mode, s.duration_limit_ms, "
-                "s.active_duration_ms, s.end_reason, m.net_wpm, m.accuracy_pct "
+                "s.active_duration_ms, s.end_reason, m.net_wpm, m.accuracy_pct, "
+                "m.consistency_score "
                 "FROM sessions s "
                 "JOIN session_metrics m ON m.session_id = s.id "
                 "ORDER BY s.created_at DESC, s.id DESC LIMIT ? OFFSET ?",
@@ -461,6 +463,7 @@ class SessionRepository:
                     end_reason=row["end_reason"],
                     net_wpm=row["net_wpm"],
                     accuracy_pct=row["accuracy_pct"],
+                    consistency_score=row["consistency_score"],
                 )
                 for row in rows
             ]

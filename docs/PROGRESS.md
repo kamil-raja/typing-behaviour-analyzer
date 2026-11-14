@@ -7,9 +7,9 @@
 
 ## Current Status
 
-**Phase: Implementation in progress — P0-D1-01 through P0-D1-10 complete.**
+**Phase: Implementation in progress — P0-D1-01 through P0-D1-10 and P0-D2-01 through P0-D2-04 complete.**
 
-Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic, the session-payload validator, text resolution, the frontend theme foundation, keyboard capture and the live typing screen now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. `app/texts.py` resolves passages and deterministic word-mode text and guards all content at startup. The test screen is reachable at `GET /`, loads time-mode words or a passage through the documented text API, and shows clearly-labelled provisional stats. Esc restarts, Tab is never intercepted, focus loss cancels, and a full buffer with errors blocks completion. A finished attempt now submits the complete accepted event sequence to `POST /api/sessions`, which validates it, resolves the text, replays it in the pure engine and returns the authoritative metrics plus a results link. `GET /results/<session_id>` renders those server-computed numbers from an in-memory store. Database persistence, history and analytics remain in Day 2.
+Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic, the session-payload validator, text resolution, the frontend theme foundation, keyboard capture and the live typing screen now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. `app/texts.py` resolves passages and deterministic word-mode text and guards all content at startup. The test screen is reachable at `GET /`, loads time-mode words or a passage through the documented text API, and shows clearly-labelled provisional stats. Esc restarts, Tab is never intercepted, focus loss cancels, and a full buffer with errors blocks completion. A finished attempt now submits the complete accepted event sequence to `POST /api/sessions`, which validates it, resolves the text, replays it in the pure engine and returns the authoritative metrics plus a results link. `GET /results/<session_id>` renders those server-computed numbers from the SQLite repository. `GET /api/sessions?limit=&offset=` and `/history` list saved sessions newest first, 25 per page, with row navigation to the results page. Typing-screen polish, analytics and the heatmap remain.
 
 ---
 
@@ -172,8 +172,19 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 - [x] Verified in Chromium against a persisted session (`053d6adeee02460ead0559dfda2b7204`): 25 tooltips, hover/click/focus show, Escape and outside click dismiss, `Eu` and data quality visible, only console error is the pre-existing `/favicon.ico` 404
 - [x] `pytest tests/ -q`: **474 passed** (472 previous + 2 new)
 
+### History page (2026-11-14)
+- [x] P0-D2-04: added `GET /api/sessions?limit=&offset=` returning `{ items, total }`; `limit` defaults to 25 and is capped at 100, `offset` defaults to 0, and invalid values return `422 VALIDATION_ERROR` with the offending field
+- [x] Extended `SessionSummary` (and the repository list query) with `consistency_score` so the documented six-column table can be rendered; the repository remains the only SQL owner
+- [x] Added `app/templates/history.html` (column headers, empty state, pagination controls, `data-page-size`) and `GET /history` in `app/routes/pages.py`
+- [x] Added `app/static/js/history-page.js`: fetches one page at a time, formats stored values only, drives Previous/Next, shows the documented empty state, and navigates a row to `/results/<id>` (real anchor in the first cell plus a row click listener)
+- [x] Added history table/pagination styles to `app/static/css/components.css` using design tokens only, and switched the `history` nav entry to `url_for` (ADR-028, ADR-036)
+- [x] Added tests: empty list, newest-first summaries with exact total, limit/offset paging, default page size with 26 sessions, invalid pagination values, page markup, script contract, and the new static asset
+- [x] Verified in Chromium against 30 seeded sessions: 25 rows on page 1, page 2 shows 5 rows, Previous/Next disable correctly, a row opens `/results/<id>`, and the only console error is the pre-existing `/favicon.ico` 404
+- [x] Recorded ADR-036 (list item shape, pagination defaults/limits, client-rendered page, row navigation)
+- [x] `pytest tests/ -q`: **486 passed** (474 previous + 12 new)
+
 ### Application code
-- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, P0-D1-09 typing screen, P0-D1-10 session submission, P0-D2-01 schema, P0-D2-02 persistence, P0-D2-03 session retrieval API and the three-tier results page; history, analytics and heatmap pages are still pending
+- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, P0-D1-09 typing screen, P0-D1-10 session submission, P0-D2-01 schema, P0-D2-02 persistence, P0-D2-03 session retrieval API and the three-tier results page, P0-D2-04 history list and page; analytics and heatmap pages are still pending
 
 ---
 
@@ -194,7 +205,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 | P0-D2-01: DB schema and connection | ✅ Complete (2026-11-09) — `app/schema.sql` + `app/db.py`, ADR-033 |
 | P0-D2-02: Repository and persistence | ✅ Complete (2026-11-09) — `app/repository.py` + repository-backed routes (ADR-034) |
 | P0-D2-03: Results page (full) | ✅ Complete (2026-11-10) — API (ADR-035) + three-tier UI with tooltips |
-| P0-D2-04: History page | ⬜ Not started |
+| P0-D2-04: History page | ✅ Complete (2026-11-14) — list API (ADR-036) + paginated `/history` page |
 | P0-D2-05: Typing screen polish | ⬜ Not started |
 | P0-D2-06: Progress endpoint and analytics charts | ⬜ Not started |
 | P0-D2-07: sessions.csv export | ⬜ Not started |
@@ -208,9 +219,9 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 
 ## Next Milestone
 
-**Day 2:** database-backed persistence and the full results page are complete. Next is the history page so saved sessions are browsable.
+**Day 2:** database-backed persistence, the full results page and the history page are complete. Next is typing-screen polish.
 
-Exact next task: **P0-D2-04** — history page (`GET /api/sessions?limit=&offset=` returning `{ items, total }`, `app/templates/history.html`, `app/static/js/history-page.js`), followed by P0-D2-05 typing-screen polish.
+Exact next task: **P0-D2-05** — typing-screen polish (passage caret/character states and scroll-follows-caret, provisional live row, config strip, state messages, focus behaviour), followed by P0-D2-06 progress charts.
 
 ---
 
@@ -232,6 +243,6 @@ See `docs/DECISIONS.md` for open ambiguities:
 - `docs/UI_DESIGN.md` §7 references `docs/METRICS.md` §6 for the Wilson heuristic; correct during UI documentation cleanup.
 - `README.md` is not yet present; leave for P0-D3-05.
 - `app/routes/__init__.py` is not specified; decide when implementing routes.
-- Base-template nav links for `analytics`, `keyboard` and `history` still 404 until their Day 2/3 tasks; this is deliberate (ADR-028).
+- Base-template nav links for `analytics` and `keyboard` still 404 until their Day 2/3 tasks; this is deliberate (ADR-028). The `history` link now resolves to `/history`.
 - Chart.js is vendored but not loaded by any page until the chart work (P0-D2-06).
 - Only the latin font subsets are vendored, matching the ASCII-only application content (ADR-028).

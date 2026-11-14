@@ -371,3 +371,4 @@ def test_paginated_list_returns_total_and_items(
     assert latest.active_duration_ms == 30000.0
     assert latest.net_wpm == analysis.metrics.net_wpm
     assert latest.accuracy_pct == 100.0
+    assert latest.consistency_score == analysis.metrics.consistency_score

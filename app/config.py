@@ -42,6 +42,10 @@ ALLOWED_TIME_LIMITS_MS = frozenset({15_000, 30_000, 60_000})
 WORD_COUNT_MIN = 10
 WORD_COUNT_MAX = 400
 
+# Session history list (blueprint §10, docs/UI_DESIGN.md §8).
+HISTORY_PAGE_SIZE = 25
+SESSION_LIST_MAX_LIMIT = 100
+
 # Word-mode text sizing (TBA blueprint §4.2). Time-mode texts are padded so early
 # completion is practically unreachable while the completion rule stays defined.
 WORDS_FOR_DURATION_MS = {

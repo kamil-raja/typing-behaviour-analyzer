@@ -42,6 +42,11 @@
   color: var(--accent);
 }
 
+.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 /* Results page */
 .page-results .site-main {
   padding-block: var(--space-4) var(--space-6);
@@ -263,6 +268,98 @@
 .measurements-note__meta {
   color: var(--text-muted);
   font-size: var(--font-size-xs);
+}
+
+/* History page */
+.page-history .site-main {
+  padding-block: var(--space-4) var(--space-6);
+}
+
+.history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.history__status {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.history__empty-action {
+  margin-top: var(--space-2);
+}
+
+.history__table-wrap {
+  overflow-x: auto;
+}
+
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.history-table th {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: var(--border-width) solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.history-table th:nth-child(n + 3) {
+  text-align: right;
+}
+
+.history-table td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: var(--border-width) solid var(--border);
+  white-space: nowrap;
+}
+
+.history-table td.numeric {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.history-table__row {
+  cursor: pointer;
+  transition: background-color var(--motion-fast) ease;
+}
+
+.history-table__row:hover,
+.history-table__row:focus-within {
+  background: var(--surface);
+}
+
+.history-table__link {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.history-table__link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.pagination__status {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  text-align: center;
 }
 
 @media (max-width: 640px) {

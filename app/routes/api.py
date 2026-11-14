@@ -19,7 +19,9 @@ from typing import Any
 from flask import Blueprint, Response, current_app, jsonify, request, url_for
 
 from ..config import (
+    HISTORY_PAGE_SIZE,
     MAX_SESSION_BODY_BYTES,
+    SESSION_LIST_MAX_LIMIT,
     SESSION_MIN_K,
     SESSION_MIN_T_MS,
     WORD_COUNT_MAX,
@@ -55,6 +57,7 @@ api_bp = Blueprint("api", __name__, url_prefix="/api")
 
 PASSAGE_LABEL_LENGTH = 40
 _COUNT_PATTERN = re.compile(r"[0-9]{1,3}")
+_PAGINATION_PATTERN = re.compile(r"[0-9]{1,9}")
 _SEED_LIMIT = 2**31
 
 
@@ -77,6 +80,16 @@ def _invalid_count(problem: str) -> tuple[Response, int]:
         VALIDATION_ERROR,
         "The count query parameter is invalid.",
         [{"field": "count", "problem": problem}],
+        status=422,
+    )
+
+
+def _invalid_pagination(field: str, problem: str) -> tuple[Response, int]:
+    """Return the documented validation error for the session list endpoint."""
+    return json_error(
+        VALIDATION_ERROR,
+        "A pagination query parameter is invalid.",
+        [{"field": field, "problem": problem}],
         status=422,
     )
 
@@ -318,6 +331,42 @@ def create_session() -> Response | tuple[Response, int]:
             }
         ),
         201,
+    )
+
+
+@api_bp.get("/sessions")
+def list_sessions() -> Response | tuple[Response, int]:
+    """Return one newest-first page of stored sessions plus the exact total.
+
+    ``limit`` defaults to the history page size and is capped at
+    ``SESSION_LIST_MAX_LIMIT`` (blueprint §10). ``offset`` defaults to 0. Both
+    are validated here; pagination itself is a repository concern.
+    """
+    raw_limit = request.args.get("limit", str(HISTORY_PAGE_SIZE))
+    raw_offset = request.args.get("offset", "0")
+
+    if (
+        _PAGINATION_PATTERN.fullmatch(raw_limit) is None
+        or not 1 <= int(raw_limit) <= SESSION_LIST_MAX_LIMIT
+    ):
+        return _invalid_pagination(
+            "limit",
+            f"must be an integer between 1 and {SESSION_LIST_MAX_LIMIT}",
+        )
+
+    if _PAGINATION_PATTERN.fullmatch(raw_offset) is None:
+        return _invalid_pagination("offset", "must be a non-negative integer")
+
+    repository: SessionRepository = current_app.extensions[STORE_EXTENSION_KEY]
+    items, total = repository.list_sessions(
+        limit=int(raw_limit),
+        offset=int(raw_offset),
+    )
+    return jsonify(
+        {
+            "items": [asdict(item) for item in items],
+            "total": total,
+        }
     )
 
 
