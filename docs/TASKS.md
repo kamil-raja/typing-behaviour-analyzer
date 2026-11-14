@@ -215,16 +215,18 @@
 - **Commit (deferred):** `feat(analytics): progress endpoint and theme-aware charts` — not performed; commits require explicit approval (ADR-037 explains the series contract and resolves AMB-004).
 
 ### P0-D2-07: sessions.csv export
-- [ ] Implement `app/exporters.py`: UTF-8 BOM CSV; injection guard (`= + - @` get leading `'`); fixed columns in blueprint order
-- [ ] Implement `GET /api/export/sessions.csv` route
-- [ ] Write `tests/test_exports.py`:
+> **Status (2026-11-14):** Complete — exporter (ADR-038), `exports` blueprint and 9 export cases.
+- [x] Implement `app/exporters.py`: UTF-8 BOM CSV; injection guard (`= + - @` get leading `'`); fixed columns in blueprint order
+- [x] Implement `GET /api/export/sessions.csv` route
+- [x] Write `tests/test_exports.py`:
   - UTF-8 BOM present
   - Injection guard on cells starting with `= + - @`
   - Null metrics export as empty cells (not "None" or "null")
   - Fixed column order matches spec
-- [ ] **Acceptance:** export downloads correctly; BOM present; injection safe; `pytest` green
-- [ ] **Commit:** `feat(day2): persistence, results, history, progress, export`
-- [ ] Run `git tag day2` after committing
+- [x] **Acceptance:** export downloads correctly; BOM present; injection safe; `pytest` green. `pytest tests/ -q`: **516 passed**; real HTTP request against an isolated server returned `200`, `text/csv; charset=utf-8`, `attachment; filename="sessions.csv"`, BOM and one persisted row.
+- [x] **Files touched:** `app/exporters.py` (new), `app/repository.py`, `app/routes/exports.py` (new), `app/__init__.py`, `tests/test_exports.py` (new), `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- [ ] **Commit:** `feat(day2): persistence, results, history, progress, export` — not performed; commits require explicit approval
+- [ ] Run `git tag day2` after committing — not performed
 
 ---
 

@@ -7,9 +7,9 @@
 
 ## Current Status
 
-**Phase: Implementation in progress — P0-D1-01 through P0-D1-10 and P0-D2-01 through P0-D2-06 complete.**
+**Phase: Implementation in progress — P0-D1-01 through P0-D1-10 and P0-D2-01 through P0-D2-07 complete.**
 
-Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic, the session-payload validator, text resolution, the frontend theme foundation, keyboard capture and the live typing screen now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. `app/texts.py` resolves passages and deterministic word-mode text and guards all content at startup. The test screen is reachable at `GET /`, loads time-mode words or a passage through the documented text API, and shows clearly-labelled provisional stats. Esc restarts, Tab is never intercepted, focus loss cancels, and a full buffer with errors blocks completion. A finished attempt now submits the complete accepted event sequence to `POST /api/sessions`, which validates it, resolves the text, replays it in the pure engine and returns the authoritative metrics plus a results link. `GET /results/<session_id>` renders those server-computed numbers from the SQLite repository. `GET /api/sessions?limit=&offset=` and `/history` list saved sessions newest first, 25 per page, with row navigation to the results page. The typing screen matches `docs/UI_DESIGN.md` §4: token-based character states, a caret anchored to the second visible line with scroll-follows-caret, a provisional live row that stays hidden until the first keystroke, the full config strip, the documented state messages and focus handling. `GET /api/analytics/progress?scope=` and `/analytics` now show stored net WPM and accuracy as a stacked pair with a server-computed 5-session moving average, a scope toggle, theme-aware Chart.js rendering and an explicit empty state. The keyboard heatmap and CSV export remain.
+Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic, the session-payload validator, text resolution, the frontend theme foundation, keyboard capture and the live typing screen now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. `app/texts.py` resolves passages and deterministic word-mode text and guards all content at startup. The test screen is reachable at `GET /`, loads time-mode words or a passage through the documented text API, and shows clearly-labelled provisional stats. Esc restarts, Tab is never intercepted, focus loss cancels, and a full buffer with errors blocks completion. A finished attempt now submits the complete accepted event sequence to `POST /api/sessions`, which validates it, resolves the text, replays it in the pure engine and returns the authoritative metrics plus a results link. `GET /results/<session_id>` renders those server-computed numbers from the SQLite repository. `GET /api/sessions?limit=&offset=` and `/history` list saved sessions newest first, 25 per page, with row navigation to the results page. The typing screen matches `docs/UI_DESIGN.md` §4: token-based character states, a caret anchored to the second visible line with scroll-follows-caret, a provisional live row that stays hidden until the first keystroke, the full config strip, the documented state messages and focus handling. `GET /api/analytics/progress?scope=` and `/analytics` now show stored net WPM and accuracy as a stacked pair with a server-computed 5-session moving average, a scope toggle, theme-aware Chart.js rendering and an explicit empty state. `GET /api/export/sessions.csv` now downloads every stored session as a UTF-8 BOM CSV in the fixed blueprint column order, with empty cells for unavailable metrics and a leading `'` on formula-like cells. The keyboard heatmap remains.
 
 ---
 
@@ -209,8 +209,18 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 - [x] Recorded ADR-037 (series shape, scope validation/default, ordering, null handling, page ownership, AMB-004 resolution)
 - [x] `pytest tests/ -q`: **507 passed** (493 previous + 14 new)
 
+### Sessions CSV export (2026-11-14)
+- [x] P0-D2-07: added `app/exporters.py` with the blueprint §10 column tuple, RFC 4180 CRLF rows, UTF-8 BOM output and the `= + - @` formula-injection guard; NULL values become empty cells
+- [x] Added `SessionExportRow` and `SessionRepository.list_export_rows()` (the only SQL), returning every stored session newest first with `gross_wpm`, `final_accuracy_pct` and the four keystroke counts
+- [x] Added `app/routes/exports.py` (`exports` blueprint): `GET /api/export/sessions.csv` returns `text/csv; charset=utf-8` with `Content-Disposition: attachment; filename="sessions.csv"`; an empty database returns the BOM plus the header row
+- [x] Registered the blueprint in `create_app()`; the route holds no SQL and the exporter holds no HTTP or database access
+- [x] Added `tests/test_exports.py` (9 cases: exact column order, empty-database CSV, one persisted session, multiple sessions newest first, NULL cells, injection guard, quoting/Unicode round trip, repeatable read-only download, layer separation)
+- [x] Recorded ADR-038 (row order, line endings, filename/content type, rendering, layer ownership)
+- [x] Verified with a real HTTP request against an isolated server and temporary database: `201` submit, then `200` download with `text/csv; charset=utf-8`, `attachment; filename="sessions.csv"`, BOM, header plus the persisted row matching the stored metrics
+- [x] `pytest tests/ -q`: **516 passed** (507 previous + 9 new)
+
 ### Application code
-- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, P0-D1-09 typing screen, P0-D1-10 session submission, P0-D2-01 schema, P0-D2-02 persistence, P0-D2-03 session retrieval API and the three-tier results page, P0-D2-04 history list and page, P0-D2-05 typing-screen polish, P0-D2-06 progress endpoint and analytics charts; CSV export and the heatmap pages are still pending
+- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, P0-D1-09 typing screen, P0-D1-10 session submission, P0-D2-01 schema, P0-D2-02 persistence, P0-D2-03 session retrieval API and the three-tier results page, P0-D2-04 history list and page, P0-D2-05 typing-screen polish, P0-D2-06 progress endpoint and analytics charts, P0-D2-07 sessions CSV export; the heatmap pages are still pending
 
 ---
 
@@ -234,7 +244,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 | P0-D2-04: History page | ✅ Complete (2026-11-14) — list API (ADR-036) + paginated `/history` page |
 | P0-D2-05: Typing screen polish | ✅ Complete (2026-11-14) — caret line anchoring + documented state messages |
 | P0-D2-06: Progress endpoint and analytics charts | ✅ Complete (2026-11-14) — progress API (ADR-037) + theme-aware `/analytics` charts |
-| P0-D2-07: sessions.csv export | ⬜ Not started |
+| P0-D2-07: sessions.csv export | ✅ Complete (2026-11-14) — BOM CSV exporter (ADR-038) + `GET /api/export/sessions.csv` |
 | P0-D3-01: Key stats aggregation and heatmap API | ⬜ Not started |
 | P0-D3-02: Heatmap UI | ⬜ Not started |
 | P0-D3-03: Hygiene tests | ⬜ Not started |
@@ -245,9 +255,9 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 
 ## Next Milestone
 
-**Day 2:** database-backed persistence, the full results page, the history page, the typing-screen polish pass and the progress charts are complete. Next is the CSV export.
+**Day 2:** database-backed persistence, the full results page, the history page, the typing-screen polish pass, the progress charts and the CSV export are complete.
 
-Exact next task: **P0-D2-07** — `sessions.csv` export, followed by Day 3 (heatmap, hygiene, manual pass, release).
+Exact next task: **P0-D3-01** — key stats aggregation and heatmap API (`GET /api/analytics/keys?scope=`), then the P0-D3-02 heatmap UI, hygiene tests, manual pass and release.
 
 ---
 
@@ -268,7 +278,7 @@ See `docs/DECISIONS.md` for open ambiguities:
 - Application limits outside `docs/METRICS.md` §14 are now centralised in `app/config.py` (schema version, event counts, 2 MiB body, allowed durations, word-count range, duration→word sizing).
 - `docs/UI_DESIGN.md` §7 references `docs/METRICS.md` §6 for the Wilson heuristic; correct during UI documentation cleanup.
 - `README.md` is not yet present; leave for P0-D3-05.
-- `app/routes/` now holds `pages.py` and `api.py`; both blueprints are registered in `create_app()`.
+- `app/routes/` now holds `pages.py`, `api.py` and `exports.py`; all three blueprints are registered in `create_app()`. The CSV export route is the only one that does not return JSON.
 - Base-template nav links for `analytics` and `keyboard` used to 404; `analytics` now resolves to `/analytics` and `history` to `/history`, while `keyboard` remains deliberate until P0-D3-02 (ADR-028).
 - Chart.js is vendored and loaded only by `analytics.html`; no other page carries it.
 - Only the latin font subsets are vendored, matching the ASCII-only application content (ADR-028).

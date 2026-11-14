@@ -10,6 +10,7 @@ from . import config
 from .db import init_db
 from .repository import STORE_EXTENSION_KEY, SessionRepository
 from .routes.api import api_bp
+from .routes.exports import exports_bp
 from .routes.pages import pages_bp
 from .texts import validate_text_sources
 
@@ -36,4 +37,5 @@ def create_app(test_config: Mapping[str, Any] | None = None) -> Flask:
     init_db(app)
     app.register_blueprint(pages_bp)
     app.register_blueprint(api_bp)
+    app.register_blueprint(exports_bp)
     return app

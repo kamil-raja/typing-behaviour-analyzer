@@ -52,12 +52,32 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 | Field | Value |
 |---|---|
 | **Branch** | `database-version` (in sync with `origin/database-version`) |
-| **Status** | Uncommitted P0-D2-06 work: modified `app/config.py`, `app/engine/metrics.py`, `app/repository.py`, `app/routes/api.py`, `app/routes/pages.py`, `app/templates/base.html`, `app/static/css/components.css`, `tests/test_metrics.py`, `tests/test_repository.py`, `tests/test_infrastructure.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`; new `app/templates/analytics.html`, `app/static/js/analytics-page.js`, `app/static/js/charts.js`, `tests/test_analytics.py` |
-| **Last commit** | `e0d6d7d feat(typing): polish typing screen interactions` (P0-D2-05) |
+| **Status** | Uncommitted P0-D2-07 work: modified `app/repository.py`, `app/__init__.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`; new `app/exporters.py`, `app/routes/exports.py`, `tests/test_exports.py` |
+| **Last commit** | `1712a54 feat(analytics): add typing progress charts` (P0-D2-06) |
 | **Tags** | None yet |
-| **Commit/push** | **None performed by this agent.** P0-D1-01–P0-D1-10 were committed as `9c02975`, `147ec1e`, `e9e2215`, `61d8c36`, `55130e1`, `1c0137a`, `4599be0`, `3cc8a56`, `20864ab`, `40e41dc`; the dev-server fix as `8a940b4`; P0-D2-01 as `8b1e811`; P0-D2-02 as `4992846`; P0-D2-03 as `661200f`; P0-D2-04 as `3ee469a`; P0-D2-05 as `e0d6d7d` (all committed externally). This agent composes working-tree changes only. |
+| **Commit/push** | **None performed by this agent.** P0-D1-01–P0-D1-10 were committed as `9c02975`, `147ec1e`, `e9e2215`, `61d8c36`, `55130e1`, `1c0137a`, `4599be0`, `3cc8a56`, `20864ab`, `40e41dc`; the dev-server fix as `8a940b4`; P0-D2-01 as `8b1e811`; P0-D2-02 as `4992846`; P0-D2-03 as `661200f`; P0-D2-04 as `3ee469a`; P0-D2-05 as `e0d6d7d`; P0-D2-06 as `1712a54` (all committed externally). This agent composes working-tree changes only. |
 
 `.venv/`, `__pycache__/`, and `instance/` (including `instance/typing.db` created by the first-run check) are ignored and are not part of the working-tree changes.
+
+### Completed This Session — P0-D2-07 Sessions CSV export
+
+| File | Purpose |
+|---|---|
+| `app/exporters.py` | `SESSIONS_COLUMNS` (blueprint §10 order), `SESSIONS_FILENAME`, `sessions_csv()`: `csv.writer` with CRLF, UTF-8 BOM bytes, NULL → empty cell, leading `'` on `= + - @` cells; no SQL/HTTP |
+| `app/repository.py` | `SessionExportRow` and `SessionRepository.list_export_rows()`: joins `sessions` + `session_metrics`, newest first, returns the 14 export fields verbatim |
+| `app/routes/exports.py` | `exports` blueprint at `/api/export`; `GET /api/export/sessions.csv` returns `text/csv; charset=utf-8` with `attachment; filename="sessions.csv"` |
+| `app/__init__.py` | Registers `exports_bp` beside the page and API blueprints |
+| `tests/test_exports.py` | 9 cases: exact column order, empty-database header-only CSV, one persisted session, newest-first multi-session export, NULL empty cells, injection guard, quoting/Unicode round trip, repeatable read-only download, layer separation |
+| `docs/DECISIONS.md` | ADR-038 (row order, CRLF, filename/content type, verbatim rendering, ownership) |
+
+- **CSV contract:** `session_id, created_at, mode, duration_limit_ms, active_duration_ms, end_reason, gross_wpm, net_wpm, accuracy_pct, final_accuracy_pct, total_keystrokes, correct_keystrokes, incorrect_keystrokes, backspace_count`. Rows are newest first (`created_at DESC, id DESC`), matching `/history`; the export is the whole set with no paging.
+- **Encoding:** `utf-8-sig`, so the body starts with `EF BB BF`; rows use CRLF per RFC 4180. `Content-Type` is `text/csv; charset=utf-8` and the download filename is `sessions.csv`.
+- **Rendering:** every non-NULL stored value goes through `str()` unchanged — no rounding or recomputation. NULL metrics and a NULL passage `duration_limit_ms` are empty cells, never `None`/`null`. Formula-like cells get one leading apostrophe after rendering, so a negative number is also quoted.
+- **Empty database:** `200` with the BOM plus the header row only; no error path exists because the endpoint takes no parameters.
+- **Layering:** SQL is only in `list_export_rows()`; CSV is only in `exporters.py`; the route only builds the response and headers. `tests/test_exports.py::test_export_layers_stay_separate` asserts the route has no SQL and the exporter has no Flask/SQLite imports.
+- **HTTP verification:** against an isolated server on port 5001 with a temporary database, `POST /api/sessions` returned `201`, then `GET /api/export/sessions.csv` returned `200`, `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="sessions.csv"`, BOM present, and a header plus one row whose values matched the stored metrics. The temporary server and database were outside the repo.
+- `pytest tests/test_exports.py -q`: **9 passed**; `pytest tests/ -q`: **516 passed** (507 previous + 9 new).
+- **P0-D2-07 is complete.**
 
 ### Completed This Session — P0-D2-06 Progress endpoint and analytics charts
 
@@ -396,12 +416,13 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 ### Verification
 
-- `python -m pytest tests\ -q`: **507 passed** (8 fixture checks, 4 infrastructure/frontend checks, 18 API/page cases, 24 replay tests, 58 metric tests, 33 key tests, 190 validator cases, 76 text-resolution cases, 41 session/results/history cases, 12 analytics cases, 25 schema/connection cases, 11 repository tests, 7 typing-screen contracts). The session cases cover detail, history pagination, tooltips, data quality and conditional `Eu`; the analytics cases cover the progress series and chart contracts.
+- `python -m pytest tests\ -q`: **516 passed** (8 fixture checks, 4 infrastructure/frontend checks, 18 API/page cases, 24 replay tests, 58 metric tests, 33 key tests, 190 validator cases, 76 text-resolution cases, 41 session/results/history cases, 12 analytics cases, 9 export cases, 25 schema/connection cases, 11 repository tests, 7 typing-screen contracts). The session cases cover detail, history pagination, tooltips, data quality and conditional `Eu`; the analytics cases cover the progress series and chart contracts; the export cases cover the CSV contract and layer separation.
 - `GET /` returns **200** and renders `test.html`. `GET /api/texts/passages`, `/api/texts/passages/p_001` and `/api/texts/words?count=200` all return **200** with the ADR-029 shapes; unknown passages return **404 TEXT_NOT_FOUND**; invalid counts return **422 VALIDATION_ERROR** with `field: "count"`.
 - `POST /api/sessions` returns **201** with the documented `{session_id, metrics, warnings, links}` shape; malformed JSON is **400 INVALID_JSON**, schema failures are **422 VALIDATION_ERROR**, oversized bodies are **413 PAYLOAD_TOO_LARGE**, unknown passages are **404 TEXT_NOT_FOUND**, invalid sequences are **422 INVALID_EVENT_SEQUENCE**, incomplete passages are **422 INCOMPLETE_SESSION**, and short sessions are **422 SESSION_TOO_SHORT**.
 - `GET /api/sessions/<id>` returns **200** with `{ session, metrics, key_stats }` (ADR-035); an unknown id returns **404 NOT_FOUND** with `field: "session_id"`. The route reads only through `SessionRepository.get()`/`get_key_stats()`.
 - `GET /api/sessions?limit=&offset=` returns **200** with `{ items, total }` (ADR-036); `limit` defaults to 25 and accepts 1–100, `offset` defaults to 0; invalid values return **422 VALIDATION_ERROR** with `field` `limit` or `offset`. `GET /history` returns **200**, renders the six-column table shell, the empty state text and the pagination controls, and loads `js/history-page.js`. Chromium check against 30 seeded sessions: 25 rows on page 1, 5 on page 2, correct disabled states, row click opens `/results/<id>`.
 - `GET /api/analytics/progress?scope=` returns **200** with `{ scope, window, sessions }` (ADR-037). Sessions are oldest first and carry both stored values and the server-computed moving averages. `scope` defaults to `all`; `last_10`, `last_30` and `all` are accepted; anything else is **422 VALIDATION_ERROR** with `field: "scope"`. `GET /analytics` returns **200**, renders the scope toggle, both chart sections, the "what to look for" lines, the vendor Chart.js script and `js/analytics-page.js`; the in-app Chromium check against 7 seeded sessions showed both charts, scope switching, theme recolouring without reload, the empty state and navigation, with no console errors.
+- `GET /api/export/sessions.csv` returns **200** with `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="sessions.csv"`, a UTF-8 BOM, the 14 blueprinted columns and every stored session newest first (ADR-038). NULL metrics are empty cells and formula-like cells get a leading `'`. An empty database returns the BOM plus the header row. The real-HTTP check submitted one session (`201`) and downloaded it with values identical to the stored metrics; `tests/test_exports.py -q` passes 9 cases.
 - `GET /` renders the polished typing screen: config strip (mode/time/passage), live row `hidden` with the `provisional` badge, three-line viewport with `tabindex="0"` and the documented `aria-label`, and the `esc restart` footer. Character states are token-based and `test.css` has no hex colours. The caret is line-box anchored; in the in-app Chromium tab its final geometry was `38.5–77 px` inside the `115.5 px` window (visible line 2) at 90, 120, 150, 180 and 200 typed characters. A wrong full passage shows `Fix the highlighted characters to finish`, Backspace clears it, Esc returns to idle, and a 15 s time-up with three keystrokes shows `Too short to save.` (422, nothing saved). A synthetic `blur` during a run shows `Test cancelled. The window lost focus.` and the next keystroke starts a fresh attempt. Native desktop keystrokes could not be injected (window not visible), so this was DOM-event verification.
 - `GET /results/<id>` renders the persisted server metrics from `SessionRecord`; an unknown id returns **404**. The results template distinguishes unavailable (`—`) from zero, shows `Eu` only when non-zero, and shows the Data quality section only when warnings exist or `zero_interval_count > 0`. Every metric label carries an accessible `?` tooltip (`button[data-metric-help]` + `role="tooltip"`), wired by `app/static/js/results-page.js`.
 - `POST /api/sessions` saves all four table shapes in one transaction and the 201 response is serialised from the persisted record (`SessionRepository.get()`), so response, page and database hold identical numbers. A mid-save failure leaves the database untouched (rollback test).
@@ -419,20 +440,20 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 ## Exact Next Task
 
-**Task ID:** P0-D2-07
-**Title:** `sessions.csv` export
+**Task ID:** P0-D3-01
+**Title:** Key stats aggregation and heatmap API
 
 **Scope (from `docs/TASKS.md`):**
-1. Implement `app/exporters.py`: UTF-8 BOM CSV; injection guard (`= + - @` get a leading `'`); fixed columns in blueprint §10 order.
-2. Implement `GET /api/export/sessions.csv`.
-3. Write `tests/test_exports.py`: BOM present, injection guard, null metrics as empty cells, fixed column order.
-4. **Acceptance:** export downloads correctly; BOM present; injection safe; `pytest` green.
+1. Implement `GET /api/analytics/keys?scope=` in `repository.py` and `api.py`; aggregate the additive `session_key_stats` sums per `key_code` with the same scope values as the progress endpoint.
+2. Reuse `engine/keys.py` (`pooled_baseline_error_rate()`, `classify_key_stat()`) for the baseline, Wilson interval and classification; return `{ method: "wilson_vs_pooled_baseline_heuristic", baseline_error_rate, min_observations, overall_mean_dwell_ms, keys: [...] }`.
+3. Write the full classification-pipeline tests in `tests/test_keys.py` (and endpoint tests beside the existing analytics cases).
+4. **Acceptance:** API returns the correct classification; `pytest` green.
 
 **Starting point:**
-- P0-D2-06 is complete: `GET /api/analytics/progress?scope=` and `/analytics` are live; `pytest tests/ -q`: **507 passed**.
-- Chart.js 4.4.7 is vendored and is loaded only by `analytics.html`.
-- `app/repository.py` remains the single SQL owner; routes stay free of SQL and metric math. The export needs a repository read that includes `gross_wpm`, `final_accuracy_pct` and the keystroke counts, which `SessionSummary` does not currently carry — extend the repository read shape rather than joining tables in the route.
-- The blueprint §10 column order is fixed: `session_id, created_at, mode, duration_limit_ms, active_duration_ms, end_reason, gross_wpm, net_wpm, accuracy_pct, final_accuracy_pct, total_keystrokes, correct_keystrokes, incorrect_keystrokes, backspace_count`. Null metrics export as empty cells.
+- P0-D2-07 is complete: `GET /api/export/sessions.csv` is live; `pytest tests/ -q`: **516 passed**.
+- `app/repository.py` remains the single SQL owner; routes stay free of SQL and metric math.
+- `GET /api/analytics/progress?scope=` already validates `last_10`/`last_30`/`all`; reuse that convention rather than inventing a second scope parser.
+- No endpoint exists for `/api/analytics/keys` yet; `classify_observation()`, `pooled_baseline_error_rate()` and `classify_key_stat()` are ready but unwired.
 - Do not commit or push without approval.
 
 ---
@@ -446,7 +467,7 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 5. **`docs/UI_DESIGN.md` §7** references `docs/METRICS.md` §6 for the Wilson heuristic; it should be §12. Correct during UI documentation cleanup.
 6. **`README.md`** is absent; leave for P0-D3-05.
 7. **`app/routes/__init__.py`** now exists as the route package docstring; `pages.py` and `api.py` live beside it and are registered in `create_app()`.
-8. **HEAD is `e0d6d7d feat(typing): polish typing screen interactions`** (P0-D2-05) on `database-version`, in sync with `origin/database-version`. The only uncommitted work is the complete P0-D2-06 (progress endpoint and analytics charts) and its doc updates. Do not commit or push without approval.
+8. **HEAD is `1712a54 feat(analytics): add typing progress charts`** (P0-D2-06) on `database-version`. The only uncommitted work is the complete P0-D2-07 (sessions CSV export) and its doc updates. Do not commit or push without approval.
 9. **Fixture A's IKI values are null by decision.** The §13 row's mean/SD arithmetic conflicts with §8.5; the author ruled §8.5 wins (ADR-023). Do not "fix" this by restoring `800.0`/`0.0`.
 10. **`session_key_stats` rows are now stored** with every session (`executemany` in the same transaction as the session row, ADR-034); `get_key_stats(id)` reads them back ordered by key code.
 11. **Heatmap classification is not yet wired to an endpoint.** `classify_observation()` and `pooled_baseline_error_rate()` are reused by P0-D3-01; do not duplicate the formula in routes or SQL.
@@ -471,6 +492,7 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 30. **The too-short message is server-owned UI copy.** `POST /api/sessions` returns `"Too short to save."` for `SESSION_TOO_SHORT`, matching `docs/UI_DESIGN.md` §4; the client displays the server message verbatim. Do not add a second copy in `test-page.js`.
 31. **Native-keyboard verification for the typing screen was not possible in P0-D2-05.** The desktop browser window could not receive real keystrokes, so keyboard states were exercised with DOM `KeyboardEvent`s and the focus-loss path with a synthetic `blur`. Re-run the §14.3 manual checklist with a physical keyboard in P0-D3-04, including Tab/Shift+Tab, held keys, AltGr and the caret line position while scrolling.
 32. **Progress moving averages are server-owned (ADR-037).** `engine.metrics.trailing_moving_average()` is the only implementation: a trailing five-point window inside the selected scope, expanding for the first four points and skipping nulls. `analytics-page.js` must never recompute them. Churn is deliberate: destroy the Chart.js instances before a scope re-render, and update colours through `applyChartTheme()` / `chart.update("none")` on `tba:themechange` rather than re-fetching data.
+33. **The CSV export is layered (ADR-038).** `SessionRepository.list_export_rows()` owns the read query, `app/exporters.py` owns CSV bytes (column order, CRLF, UTF-8 BOM, NULL cells, `= + - @` guard) and `app/routes/exports.py` owns only the response headers. Do not move SQL into `exporters.py` or CSV formatting into the route. The export is the whole stored set, newest first; there is no paging or query parameter.
 
 ---
 

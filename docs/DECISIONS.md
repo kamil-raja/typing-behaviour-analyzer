@@ -433,6 +433,19 @@ P0-D1-05 will map expected characters through `CHAR_TO_CODE` and merge the two m
 - Empty history shows "No sessions yet." and no chart is created. Null series values stay gaps (`spanGaps: false`), not zeroes.
 **Consequences:** AMB-004 is resolved. The page and API agree on one series shape, no schema change is needed, and the browser remains free of metric math. Adding the P1 IKI histogram is an additive endpoint/page section.
 
+### ADR-038: Sessions CSV export format and ownership
+**Date:** 2026-11-14
+**Status:** Approved
+**Context:** Blueprint §10 fixes `GET /api/export/sessions.csv` as UTF-8 with a BOM, a fixed column order, formula-injection guarding and empty cells for NULL metrics. It does not fix the row order, the line terminator, the filename, the content type, or how the values are rendered into text. Blueprint §12 places `exporters.py` and `routes/exports.py` in the folder structure, so serialisation and HTTP construction belong in separate modules.
+**Decision:**
+- Row order is newest first (`created_at DESC, id DESC`), matching the history list, and the export covers the whole stored set (no paging or query parameters).
+- `app/exporters.py` owns CSV serialisation: `csv.writer` with RFC 4180 CRLF line endings, `utf-8-sig` (BOM) output as `bytes`, the fixed blueprinted column tuple and the injection guard. `app/repository.py` owns a new `SessionExportRow` read shape and `list_export_rows()`; the route only calls both and builds the response.
+- Every non-NULL value is rendered with `str()` unchanged — no rounding, re-formatting or metric recomputation, so the file agrees with the stored record. NULL becomes an empty cell.
+- The injection guard is applied to every cell after rendering: any text starting with `=`/`+`/`-`/`@` gets a leading `'`. This also catches negative numbers, which the blueprint's rule covers literally.
+- The route lives in `app/routes/exports.py` (`exports` blueprint, `/api/export`) and returns `Content-Type: text/csv; charset=utf-8` with `Content-Disposition: attachment; filename="sessions.csv"`.
+- An empty database returns `200` with the BOM and the header row only. The endpoint takes no parameters, so it has no error path of its own.
+**Consequences:** The download is safe to open in spreadsheet software, agrees byte-for-byte with stored values, and keeps SQL, serialisation and HTTP in their documented layers. Adding the P1 events export reuses the same exporter/route split with a different column set.
+
 ---
 
 ## Open Ambiguities

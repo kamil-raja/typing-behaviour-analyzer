@@ -141,6 +141,26 @@ class SessionSummary:
 
 
 @dataclass(frozen=True)
+class SessionExportRow:
+    """One session in the ``sessions.csv`` column order (blueprint §10)."""
+
+    session_id: str
+    created_at: str
+    mode: str
+    duration_limit_ms: int | None
+    active_duration_ms: float
+    end_reason: str
+    gross_wpm: float | None
+    net_wpm: float | None
+    accuracy_pct: float | None
+    final_accuracy_pct: float | None
+    total_keystrokes: int
+    correct_keystrokes: int
+    incorrect_keystrokes: int
+    backspace_count: int
+
+
+@dataclass(frozen=True)
 class ProgressPoint:
     """One chronological point of the progress series (oldest first)."""
 
@@ -510,6 +530,46 @@ class SessionRepository:
                     accuracy_pct=row["accuracy_pct"],
                 )
                 for row in reversed(rows)
+            ]
+        finally:
+            connection.close()
+
+    def list_export_rows(self) -> list[SessionExportRow]:
+        """Return every stored session in the ``sessions.csv`` export shape.
+
+        Newest first, matching the history list, so the download reads in the
+        same order as the UI. The export covers the whole set (no paging).
+        """
+        connection = self._connect()
+        try:
+            rows = connection.execute(
+                "SELECT s.id AS session_id, s.created_at, s.mode, "
+                "s.duration_limit_ms, s.active_duration_ms, s.end_reason, "
+                "m.gross_wpm, m.net_wpm, m.accuracy_pct, m.final_accuracy_pct, "
+                "m.total_keystrokes, m.correct_keystrokes, "
+                "m.incorrect_keystrokes, m.backspace_count "
+                "FROM sessions s "
+                "JOIN session_metrics m ON m.session_id = s.id "
+                "ORDER BY s.created_at DESC, s.id DESC"
+            ).fetchall()
+            return [
+                SessionExportRow(
+                    session_id=row["session_id"],
+                    created_at=row["created_at"],
+                    mode=row["mode"],
+                    duration_limit_ms=row["duration_limit_ms"],
+                    active_duration_ms=row["active_duration_ms"],
+                    end_reason=row["end_reason"],
+                    gross_wpm=row["gross_wpm"],
+                    net_wpm=row["net_wpm"],
+                    accuracy_pct=row["accuracy_pct"],
+                    final_accuracy_pct=row["final_accuracy_pct"],
+                    total_keystrokes=row["total_keystrokes"],
+                    correct_keystrokes=row["correct_keystrokes"],
+                    incorrect_keystrokes=row["incorrect_keystrokes"],
+                    backspace_count=row["backspace_count"],
+                )
+                for row in rows
             ]
         finally:
             connection.close()
