@@ -7,7 +7,7 @@
 
 ## Current Status
 
-**Phase: Implementation in progress — P0-D1-01 through P0-D1-10, P0-D2-01 through P0-D2-07 and P0-D3-01 through P0-D3-02 complete.**
+**Phase: Implementation in progress — P0-D1-01 through P0-D1-10, P0-D2-01 through P0-D2-07 and P0-D3-01 through P0-D3-03 complete.**
 
 Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic, the session-payload validator, text resolution, the frontend theme foundation, keyboard capture and the live typing screen now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. `app/texts.py` resolves passages and deterministic word-mode text and guards all content at startup. The test screen is reachable at `GET /`, loads time-mode words or a passage through the documented text API, and shows clearly-labelled provisional stats. Esc restarts, Tab is never intercepted, focus loss cancels, and a full buffer with errors blocks completion. A finished attempt now submits the complete accepted event sequence to `POST /api/sessions`, which validates it, resolves the text, replays it in the pure engine and returns the authoritative metrics plus a results link. `GET /results/<session_id>` renders those server-computed numbers from the SQLite repository. `GET /api/sessions?limit=&offset=` and `/history` list saved sessions newest first, 25 per page, with row navigation to the results page. The typing screen matches `docs/UI_DESIGN.md` §4: token-based character states, a caret anchored to the second visible line with scroll-follows-caret, a provisional live row that stays hidden until the first keystroke, the full config strip, the documented state messages and focus handling. `GET /api/analytics/progress?scope=` and `/analytics` now show stored net WPM and accuracy as a stacked pair with a server-computed 5-session moving average, a scope toggle, theme-aware Chart.js rendering and an explicit empty state. `GET /api/export/sessions.csv` now downloads every stored session as a UTF-8 BOM CSV in the fixed blueprint column order, with empty cells for unavailable metrics and a leading `'` on formula-like cells. The keyboard heatmap remains.
 
@@ -232,8 +232,15 @@ The keyboard heatmap is reachable at `GET /keyboard` and consumes `GET /api/anal
 - [x] Verified in Chromium against an isolated 2-session database on port 5001: 61 board keys (49 tracked + 12 neutral modifiers), one weak key (A, 23.3%), two strong keys (S 3.3%, B 7.0%), Q at 5/20, Backspace at 3 presses / 3 dwell samples / 200 ms, working inspector facts, scope switching, theme recolour, simulated API-error state, real empty-history state and no console errors
 - [x] `pytest tests/ -q`: **548 passed** (545 previous + 3 new)
 
+### Hygiene tests (2026-11-22)
+- [x] P0-D3-03: added `tests/test_hygiene.py` with five checks for blueprint §14.2 groups 5, 7 and 11
+- [x] Heatmap wording: every template source and every shipped JS string literal is free of "significant" and "statistically"; `METRICS.md` is excluded per ADR-005
+- [x] Timing honesty: templates (and `README.md` once it exists) make no microsecond/µs/nanosecond or laboratory-grade precision claim; the results page carries the "About the measurements" note with "not laboratory-grade" and "relative comparison"
+- [x] Scope: the live `url_map` has no bigram, pause or recalculation route, and the initialised database has only the four documented tables
+- [x] `pytest tests/test_hygiene.py -q`: **5 passed**; `pytest tests/ -q`: **553 passed** (548 previous + 5 new)
+
 ### Application code
-- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, P0-D1-09 typing screen, P0-D1-10 session submission, P0-D2-01 schema, P0-D2-02 persistence, P0-D2-03 session retrieval API and the three-tier results page, P0-D2-04 history list and page, P0-D2-05 typing-screen polish, P0-D2-06 progress endpoint and analytics charts, P0-D2-07 sessions CSV export, P0-D3-01 historical key aggregation API, P0-D3-02 keyboard heatmap UI
+- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, P0-D1-09 typing screen, P0-D1-10 session submission, P0-D2-01 schema, P0-D2-02 persistence, P0-D2-03 session retrieval API and the three-tier results page, P0-D2-04 history list and page, P0-D2-05 typing-screen polish, P0-D2-06 progress endpoint and analytics charts, P0-D2-07 sessions CSV export, P0-D3-01 historical key aggregation API, P0-D3-02 keyboard heatmap UI, P0-D3-03 hygiene tests
 
 ---
 
@@ -260,7 +267,7 @@ The keyboard heatmap is reachable at `GET /keyboard` and consumes `GET /api/anal
 | P0-D2-07: sessions.csv export | ✅ Complete (2026-11-14) — BOM CSV exporter (ADR-038) + `GET /api/export/sessions.csv` |
 | P0-D3-01: Key stats aggregation and heatmap API | ✅ Complete (2026-11-21) — historical aggregation in the engine (ADR-039) + `GET /api/analytics/keys?scope=` |
 | P0-D3-02: Heatmap UI | ✅ Complete (2026-11-22) — `/keyboard`, ANSI board, pinned inspector and summary lists |
-| P0-D3-03: Hygiene tests | ⬜ Not started |
+| P0-D3-03: Hygiene tests | ✅ Complete (2026-11-22) — `tests/test_hygiene.py`, five wording/scope checks |
 | P0-D3-04: Manual test pass | ⬜ Not started |
 | P0-D3-05: README and delivery | ⬜ Not started |
 
@@ -270,9 +277,9 @@ The keyboard heatmap is reachable at `GET /keyboard` and consumes `GET /api/anal
 
 **Day 2:** database-backed persistence, the full results page, the history page, the typing-screen polish pass, the progress charts and the CSV export are complete.
 
-**Day 3 (in progress):** the historical key aggregation and heatmap API (`GET /api/analytics/keys?scope=`, ADR-039) and the `/keyboard` heatmap UI are complete; `pytest tests/ -q`: **548 passed**.
+**Day 3 (in progress):** the historical key aggregation and heatmap API (`GET /api/analytics/keys?scope=`, ADR-039), the `/keyboard` heatmap UI and the hygiene regression tests are complete; `pytest tests/ -q`: **553 passed**.
 
-Exact next task: **P0-D3-03** — hygiene tests (`tests/test_hygiene.py`), then the manual pass and release.
+Exact next task: **P0-D3-04** — full manual test pass from blueprint §14.3, then the README and release.
 
 ---
 

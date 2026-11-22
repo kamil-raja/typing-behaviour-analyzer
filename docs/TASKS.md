@@ -259,13 +259,16 @@
 - [ ] **Commit:** `feat(keyboard): add interactive keyboard heatmap UI` — not performed; commits require explicit approval
 
 ### P0-D3-03: Hygiene tests
-- [ ] Implement `tests/test_hygiene.py`:
+> **Status (2026-11-22):** Complete — `tests/test_hygiene.py` covers blueprint §14.2 groups 5, 7 and 11.
+- [x] Implement `tests/test_hygiene.py`:
   - User-facing heatmap strings (templates + shipped JS literals) contain no "significant" or "statistically" (note: `METRICS.md` technical explanation is excluded from this check per blueprint §14.2 regression group 5)
   - `README` and templates contain no µs/microsecond precision claims for timing
   - Timing-honesty note is present in results template
   - API has no bigram/pause/recalculate routes
   - Schema has no bigram table
-- [ ] **Acceptance:** all hygiene tests pass
+- [x] **Acceptance:** all hygiene tests pass. `pytest tests/test_hygiene.py -q`: **5 passed**; `pytest tests/ -q`: **553 passed** (548 previous + 5 new).
+- [x] **Files touched:** `tests/test_hygiene.py` (new), `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- [ ] **Commit:** `test(hygiene): add wording and scope regression checks` — not performed; commits require explicit approval
 
 ### P0-D3-04: Manual test pass
 - [ ] Execute full manual checklist from `TBA_BLUEPRINT_v3_FINAL.md` §14.3

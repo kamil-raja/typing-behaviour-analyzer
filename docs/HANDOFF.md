@@ -51,13 +51,28 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 | Field | Value |
 |---|---|
-| **Branch** | `full-project` (P0-D3-02 work is uncommitted) |
-| **Status** | Uncommitted P0-D3-02 work: new `app/templates/keyboard.html`, `app/static/js/keyboard-heatmap.js`, `app/static/css/keyboard.css`; modified `app/routes/pages.py`, `app/templates/base.html`, `tests/test_analytics.py`, `tests/test_infrastructure.py`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md` |
-| **Last commit** | `e43b99c feat(analytics): add historical key heatmap API` |
+| **Branch** | `full-project` (P0-D3-03 work is uncommitted) |
+| **Status** | Uncommitted P0-D3-03 work: new `tests/test_hygiene.py`; modified `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`. The P0-D3-02 keyboard UI was committed externally. |
+| **Last commit** | `9d38d9d feat(ui): add historical keyboard heatmap` |
 | **Tags** | None yet |
 | **Commit/push** | **None performed by this agent.** Earlier milestones were committed externally (`9c02975`…`1712a54`, then `ba5e7e6`, `06fa0d5` and `e43b99c`). This agent composes working-tree changes only. |
 
 `.venv/`, `__pycache__/`, and `instance/` (including `instance/typing.db` created by the first-run check) are ignored and are not part of the working-tree changes.
+
+### Completed This Session — P0-D3-03 Hygiene tests
+
+| File | Purpose |
+|---|---|
+| `tests/test_hygiene.py` | Five checks for blueprint §14.2 groups 5, 7 and 11 |
+| `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md` | Status, test count, file list and next-task updates |
+
+- **Heatmap wording (group 5):** scans every `app/templates/*.html` source and the string literals of every `app/static/js/*.js` module (single, double and backtick quotes; vendor excluded) for "significant" and "statistically". `METRICS.md` and other docs stay excluded per ADR-005.
+- **Timing honesty (group 7):** scans all templates plus `README.md` when it exists for microsecond/nanosecond/µs/μs and "laboratory-grade precision" claims. The honesty statement "not laboratory-grade" is allowed and required. CSS is not scanned, so `clamp()` is unaffected.
+- **Honesty note:** `results.html` must keep "About the measurements", "not laboratory-grade" and "relative comparison".
+- **Scope (group 11):** inspects the live `app.url_map` for bigram/pause/recalculation routes and queries `sqlite_master` for tables; the initialised database must hold exactly `sessions`, `session_metrics`, `keystroke_events` and `session_key_stats`.
+- **No application change was needed** — the existing copy and route/schema surface already met every criterion.
+- `pytest tests/test_hygiene.py -q`: **5 passed**; `pytest tests/ -q`: **553 passed** (548 previous + 5 new).
+- **P0-D3-03 is complete.** Exact next task: **P0-D3-04** — manual test pass from blueprint §14.3.
 
 ### Completed This Session — P0-D3-02 Keyboard heatmap UI
 
@@ -462,7 +477,7 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 ### Verification
 
-- `python -m pytest tests\ -q`: **548 passed** (8 fixture checks, 4 infrastructure/frontend checks, 18 API/page cases, 24 replay tests, 58 metric tests, 49 key tests, 190 validator cases, 76 text-resolution cases, 41 session/results/history cases, 28 analytics/keyboard cases, 9 export cases, 25 schema/connection cases, 11 repository tests, 7 typing-screen contracts). The session cases cover detail, history pagination, tooltips, data quality and conditional `Eu`; the analytics cases cover the progress series, chart contracts, the historical key endpoint and the keyboard heatmap page; the key cases cover aggregation, Wilson classification, Backspace presses and unattempted keys; the export cases cover the CSV contract and layer separation.
+- `python -m pytest tests\ -q`: **553 passed** (8 fixture checks, 4 infrastructure/frontend checks, 18 API/page cases, 24 replay tests, 58 metric tests, 49 key tests, 190 validator cases, 76 text-resolution cases, 41 session/results/history cases, 28 analytics/keyboard cases, 9 export cases, 25 schema/connection cases, 11 repository tests, 7 typing-screen contracts, 5 hygiene checks). The session cases cover detail, history pagination, tooltips, data quality and conditional `Eu`; the analytics cases cover the progress series, chart contracts, the historical key endpoint and the keyboard heatmap page; the key cases cover aggregation, Wilson classification, Backspace presses and unattempted keys; the export cases cover the CSV contract and layer separation.
 - `GET /` returns **200** and renders `test.html`. `GET /api/texts/passages`, `/api/texts/passages/p_001` and `/api/texts/words?count=200` all return **200** with the ADR-029 shapes; unknown passages return **404 TEXT_NOT_FOUND**; invalid counts return **422 VALIDATION_ERROR** with `field: "count"`.
 - `POST /api/sessions` returns **201** with the documented `{session_id, metrics, warnings, links}` shape; malformed JSON is **400 INVALID_JSON**, schema failures are **422 VALIDATION_ERROR**, oversized bodies are **413 PAYLOAD_TOO_LARGE**, unknown passages are **404 TEXT_NOT_FOUND**, invalid sequences are **422 INVALID_EVENT_SEQUENCE**, incomplete passages are **422 INCOMPLETE_SESSION**, and short sessions are **422 SESSION_TOO_SHORT**.
 - `GET /api/sessions/<id>` returns **200** with `{ session, metrics, key_stats }` (ADR-035); an unknown id returns **404 NOT_FOUND** with `field: "session_id"`. The route reads only through `SessionRepository.get()`/`get_key_stats()`.
@@ -481,27 +496,24 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 - `app/static/js/results-page.js` contains no fetching and no metric math; it only manages tooltip ARIA state and dismissal. The page stays server-rendered from the persisted record.
 - `app/static/js/history-page.js` fetches the list API and formats stored values only (date locale, unit suffixes, one-decimal rounding); it computes no metric. `app/routes/api.py` contains no SQL for the list either — it delegates to `SessionRepository.list_sessions()`.
 - `app/static/js/analytics-page.js` fetches the progress API and formats labels/values only; `app/static/js/charts.js` maps those values onto Chart.js. Neither computes a metric or a moving average, and `app/routes/api.py` delegates the series to `SessionRepository.list_progress()` and the averages to `engine.metrics.trailing_moving_average()`.
-- `tests/` now contains the conftest, seven golden JSON fixtures, fixture checks, replay tests, metric tests, key-map/classification tests, validator tests, text-resolution tests, API/page tests, session/history/analytics tests and the frontend smoke checks.
+- `tests/` now contains the conftest, seven golden JSON fixtures, fixture checks, replay tests, metric tests, key-map/classification tests, validator tests, text-resolution tests, API/page tests, session/history/analytics tests, hygiene checks and the frontend smoke checks.
 - No compatibility issues with Python 3.14.7.
 
 ---
 
 ## Exact Next Task
 
-**Task ID:** P0-D3-03
-**Title:** Hygiene tests
+**Task ID:** P0-D3-04
+**Title:** Manual test pass
 
 **Scope (from `docs/TASKS.md`):**
-1. Implement `tests/test_hygiene.py`.
-2. Check that user-facing heatmap strings (templates and shipped JS literals) contain no "significant" or "statistically"; `METRICS.md` is excluded per blueprint §14.2 regression group 5.
-3. Check that the README (once it exists) and templates contain no µs/microsecond precision claims for timing.
-4. Check that the timing-honesty note is present in the results template.
-5. Check that the API has no bigram/pause/recalculate routes and the schema has no bigram table.
+1. Execute the full manual checklist from `TBA_BLUEPRINT_v3_FINAL.md` §14.3.
+2. Fix any bugs found.
+3. Keep `pytest` green after all fixes.
 
 **Starting point:**
-- P0-D3-02 is complete: `/keyboard`, `keyboard-heatmap.js` and `keyboard.css` are live and consume `GET /api/analytics/keys?scope=`; `pytest tests/ -q`: **548 passed**.
-- The keyboard page's user-facing copy deliberately says "not a hypothesis test" and never claims significance. Keep it that way.
-- The timing-honesty note currently lives in `app/templates/results.html`; the keyboard page carries its own browser-observed-timing note.
+- P0-D3-03 is complete: `tests/test_hygiene.py` covers blueprint §14.2 groups 5, 7 and 11; `pytest tests/ -q`: **553 passed**.
+- The manual checklist still needs a physical keyboard for the typing-screen items (item 31 in Outstanding Issues): Tab/Shift+Tab, held keys, AltGr, focus loss and the caret line position.
 - Do not commit or push without approval.
 
 ---
@@ -515,7 +527,7 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 5. **`docs/UI_DESIGN.md` §7** references `docs/METRICS.md` §6 for the Wilson heuristic; it should be §12. Correct during UI documentation cleanup.
 6. **`README.md`** is absent; leave for P0-D3-05.
 7. **`app/routes/__init__.py`** now exists as the route package docstring; `pages.py` and `api.py` live beside it and are registered in `create_app()`.
-8. **HEAD is `06fa0d5 merge: integrate database version into full project`** on `full-project`. The only uncommitted work is the complete P0-D3-01 (historical key stats API) and its doc updates. Do not commit or push without approval.
+8. **HEAD is `9d38d9d feat(ui): add historical keyboard heatmap`** on `full-project`. The only uncommitted work is P0-D3-03 (`tests/test_hygiene.py` plus the three doc updates). Do not commit or push without approval.
 9. **Fixture A's IKI values are null by decision.** The §13 row's mean/SD arithmetic conflicts with §8.5; the author ruled §8.5 wins (ADR-023). Do not "fix" this by restoring `800.0`/`0.0`.
 10. **`session_key_stats` rows are now stored** with every session (`executemany` in the same transaction as the session row, ADR-034); `get_key_stats(id)` reads them back ordered by key code.
 11. **The heatmap API is layered (ADR-039).** `SessionRepository.list_scoped_key_stats()` filters the scoped per-session rows, `engine.keys.aggregate_key_stats()` sums them and `build_key_heatmap()` computes the baseline, Wilson intervals and classes. Do not move the `SUM()` into SQL, the classification into the route, or duplicate the formula in JavaScript. `error_rate` is a ratio (0–1), and every mapped key is returned so "never attempted" is explicit.
