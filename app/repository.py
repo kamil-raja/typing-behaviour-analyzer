@@ -22,7 +22,7 @@ from uuid import uuid4
 from app.config import ANALYSIS_VERSION
 from app.db import connect
 from app.engine import SessionAnalysis
-from app.engine.keys import SessionKeyStat
+from app.engine.keys import KeyStatObservation, SessionKeyStat
 from app.engine.metrics import SessionMetrics
 from app.validators import ValidatedSessionPayload
 
@@ -87,6 +87,14 @@ INSERT INTO session_metrics (
     iki_hist_json, data_quality_json
 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
+
+# The heatmap scope matches the progress endpoint: newest first by
+# ``created_at DESC, id DESC`` over sessions that have a metrics row.
+_SCOPED_SESSION_IDS = (
+    "SELECT s.id FROM sessions s "
+    "JOIN session_metrics m ON m.session_id = s.id "
+    "ORDER BY s.created_at DESC, s.id DESC LIMIT ?"
+)
 
 
 @dataclass(frozen=True)
@@ -571,6 +579,58 @@ class SessionRepository:
                 )
                 for row in rows
             ]
+        finally:
+            connection.close()
+
+    def list_scoped_key_stats(
+        self,
+        limit: int | None,
+    ) -> tuple[list[KeyStatObservation], int, int]:
+        """Return the scoped key rows, session count and Backspace presses.
+
+        ``limit`` selects the most recent sessions, matching the progress
+        endpoint's scope semantics; ``None`` means every session. Sessions with
+        no stored key rows are counted but contribute no observations. The
+        Backspace press total is summed from ``session_metrics`` because it is
+        not derivable from the key rows' dwell samples.
+        """
+        scoped_limit = -1 if limit is None else limit
+        connection = self._connect()
+        try:
+            session_count = connection.execute(
+                "SELECT COUNT(*) FROM (" + _SCOPED_SESSION_IDS + ")",
+                (scoped_limit,),
+            ).fetchone()[0]
+            backspace_presses = connection.execute(
+                "SELECT COALESCE(SUM(m.backspace_presses), 0) "
+                "FROM session_metrics m "
+                "WHERE m.session_id IN (" + _SCOPED_SESSION_IDS + ")",
+                (scoped_limit,),
+            ).fetchone()[0]
+            rows = connection.execute(
+                "SELECT k.session_id, k.key_code, k.attempts, k.errors, "
+                "k.dwell_count, k.dwell_sum_ms, k.iki_count, k.iki_sum_ms "
+                "FROM session_key_stats k "
+                "WHERE k.session_id IN (" + _SCOPED_SESSION_IDS + ") "
+                "ORDER BY k.key_code, k.session_id",
+                (scoped_limit,),
+            ).fetchall()
+            observations = [
+                KeyStatObservation(
+                    session_id=row["session_id"],
+                    stat=SessionKeyStat(
+                        key_code=row["key_code"],
+                        attempts=row["attempts"],
+                        errors=row["errors"],
+                        dwell_count=row["dwell_count"],
+                        dwell_sum_ms=row["dwell_sum_ms"],
+                        iki_count=row["iki_count"],
+                        iki_sum_ms=row["iki_sum_ms"],
+                    ),
+                )
+                for row in rows
+            ]
+            return observations, session_count, backspace_presses
         finally:
             connection.close()
 

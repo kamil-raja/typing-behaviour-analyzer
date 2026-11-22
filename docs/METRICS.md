@@ -293,6 +293,23 @@ API response includes: `"method": "wilson_vs_pooled_baseline_heuristic"`
 
 **Rule:** neither mode ever changes the error classification.
 
+### 12.4 Historical Aggregation (Analytics)
+
+`GET /api/analytics/keys?scope=` sums the stored `session_key_stats` rows over the sessions in scope (the most recent `last_10`, `last_30`, or all sessions). The scoped session set is the same as the progress endpoint (`sessions` joined to `session_metrics`, newest first by `created_at DESC, id DESC`).
+
+```
+n_k = Σ_s n_{k,s}                  # attempts for key k
+x_k = Σ_s x_{k,s}                  # errors for key k
+e_k = x_k / n_k                    # aggregated error rate (never an average of session rates)
+b   = max(Σ_k x_k / Σ_k n_k, 0.01) # pooled baseline over all tracked keys except Backspace
+overall_mean_dwell = Σ_k dwell_sum_k / Σ_k dwell_count_k   # every non-Backspace physical code
+backspace_presses  = Σ_s session_metrics.backspace_presses
+```
+
+`session_count_k` is the number of distinct sessions that stored a row for key `k`; the response's `scoped_session_count` is the number of sessions in the scope. Missing keys are absent from the sums and are returned by the API with `attempts = 0`. The classification rules, the `n ≥ 20` gate and the Wilson formula are exactly §12.2; `Backspace` is reported with dwell and its stored press total, and is never classified. Presses and dwell are independent: a press without a valid keyup adds a press but no dwell sample. Dwell from physical codes outside the tracked layout still contributes to `overall_mean_dwell` but is not returned as a key entry. The response field `error_rate` is the ratio `e_k` (0–1), not a percentage.
+
+The additive sums are computed in `engine.keys.aggregate_key_stats()` from the scoped rows, not with SQL `SUM()` (ADR-039). This is exact and keeps the aggregation testable in the engine; at the current local scale the cost is one row per tracked key per session. Move the sums into SQL if stored sessions reach the tens of thousands, where loading every row into Python becomes the bottleneck.
+
 ---
 
 ## 13. Golden Fixtures (§14.1) — Hand-computed Expected Values

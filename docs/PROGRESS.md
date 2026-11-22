@@ -245,7 +245,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 | P0-D2-05: Typing screen polish | ✅ Complete (2026-11-14) — caret line anchoring + documented state messages |
 | P0-D2-06: Progress endpoint and analytics charts | ✅ Complete (2026-11-14) — progress API (ADR-037) + theme-aware `/analytics` charts |
 | P0-D2-07: sessions.csv export | ✅ Complete (2026-11-14) — BOM CSV exporter (ADR-038) + `GET /api/export/sessions.csv` |
-| P0-D3-01: Key stats aggregation and heatmap API | ⬜ Not started |
+| P0-D3-01: Key stats aggregation and heatmap API | ✅ Complete (2026-11-21) — historical aggregation in the engine (ADR-039) + `GET /api/analytics/keys?scope=` |
 | P0-D3-02: Heatmap UI | ⬜ Not started |
 | P0-D3-03: Hygiene tests | ⬜ Not started |
 | P0-D3-04: Manual test pass | ⬜ Not started |
@@ -257,7 +257,9 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 
 **Day 2:** database-backed persistence, the full results page, the history page, the typing-screen polish pass, the progress charts and the CSV export are complete.
 
-Exact next task: **P0-D3-01** — key stats aggregation and heatmap API (`GET /api/analytics/keys?scope=`), then the P0-D3-02 heatmap UI, hygiene tests, manual pass and release.
+**Day 3 (started):** the historical key aggregation and heatmap API is complete (`GET /api/analytics/keys?scope=`, ADR-039; Backspace press totals and tracked-layout filtering included; `pytest tests/ -q`: **545 passed**).
+
+Exact next task: **P0-D3-02** — heatmap UI (`/keyboard`, `app/templates/keyboard.html`, `app/static/js/keyboard-heatmap.js`, `app/static/css/keyboard.css`) consuming the new endpoint, then hygiene tests, manual pass and release.
 
 ---
 

@@ -14,6 +14,7 @@ base key.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Final
 
@@ -30,6 +31,9 @@ WEAK: Final = "weak"
 AVERAGE: Final = "average"
 STRONG: Final = "strong"
 INSUFFICIENT: Final = "insufficient"
+
+BACKSPACE_CODE: Final = "Backspace"
+HEATMAP_METHOD: Final = "wilson_vs_pooled_baseline_heuristic"
 
 # A binary floating-point margin can turn an exact decimal boundary such as
 # 0.12 - 0.10 into 0.019999999999999997. The tolerance only protects the
@@ -93,6 +97,61 @@ CHAR_TO_CODE: Final[dict[str, str]] = {
     ",": "Comma", "<": "Comma",
     ".": "Period", ">": "Period",
     "/": "Slash", "?": "Slash",
+}
+
+# Display labels for the drawn US-QWERTY keys, keyed by ``event.code``. Every
+# code in ``CHAR_TO_CODE`` plus Backspace is covered; the heatmap API returns
+# all of them so a key with no recorded attempts is still renderable.
+KEY_CODE_LABELS: Final[dict[str, str]] = {
+    "Backquote": "`",
+    "Digit1": "1",
+    "Digit2": "2",
+    "Digit3": "3",
+    "Digit4": "4",
+    "Digit5": "5",
+    "Digit6": "6",
+    "Digit7": "7",
+    "Digit8": "8",
+    "Digit9": "9",
+    "Digit0": "0",
+    "Minus": "-",
+    "Equal": "=",
+    "KeyQ": "Q",
+    "KeyW": "W",
+    "KeyE": "E",
+    "KeyR": "R",
+    "KeyT": "T",
+    "KeyY": "Y",
+    "KeyU": "U",
+    "KeyI": "I",
+    "KeyO": "O",
+    "KeyP": "P",
+    "BracketLeft": "[",
+    "BracketRight": "]",
+    "Backslash": "\\",
+    "KeyA": "A",
+    "KeyS": "S",
+    "KeyD": "D",
+    "KeyF": "F",
+    "KeyG": "G",
+    "KeyH": "H",
+    "KeyJ": "J",
+    "KeyK": "K",
+    "KeyL": "L",
+    "Semicolon": ";",
+    "Quote": "'",
+    "KeyZ": "Z",
+    "KeyX": "X",
+    "KeyC": "C",
+    "KeyV": "V",
+    "KeyB": "B",
+    "KeyN": "N",
+    "KeyM": "M",
+    "Comma": ",",
+    "Period": ".",
+    "Slash": "/",
+    "Space": "Space",
+    "Backspace": "Backspace",
 }
 
 
@@ -354,3 +413,266 @@ def merge_session_key_stats(key_stats: KeyStats) -> dict[str, SessionKeyStat]:
         )
         for code in sorted(codes)
     }
+
+
+@dataclass(frozen=True)
+class KeyStatObservation:
+    """One stored ``session_key_stats`` row tagged with its session."""
+
+    session_id: str
+    stat: SessionKeyStat
+
+
+@dataclass(frozen=True)
+class AggregatedKeyStat:
+    """Additive per-key sums across every session in scope.
+
+    ``attempts``, ``errors`` and the IKI sums are sums of per-session sums, so
+    the error rate is ``Σerrors / Σattempts`` rather than a mean of per-session
+    rates. ``session_count`` is the number of distinct sessions that stored a
+    row for this key.
+    """
+
+    key_code: str
+    attempts: int = 0
+    errors: int = 0
+    dwell_count: int = 0
+    dwell_sum_ms: float = 0.0
+    iki_count: int = 0
+    iki_sum_ms: float = 0.0
+    session_count: int = 0
+
+    @property
+    def error_rate(self) -> float | None:
+        """Aggregated error ratio ``Σx / Σn``, or ``None`` with no attempts."""
+        if self.attempts == 0:
+            return None
+        return self.errors / self.attempts
+
+    @property
+    def mean_dwell_ms(self) -> float | None:
+        """Mean valid dwell across sessions for this physical key."""
+        if self.dwell_count == 0:
+            return None
+        return self.dwell_sum_ms / self.dwell_count
+
+    @property
+    def mean_iki_ms(self) -> float | None:
+        """Mean clean-transition IKI into this key across sessions."""
+        if self.iki_count == 0:
+            return None
+        return self.iki_sum_ms / self.iki_count
+
+
+@dataclass(frozen=True)
+class HeatmapKey:
+    """One key in the historical heatmap response (blueprint §10)."""
+
+    key_code: str
+    label: str
+    attempts: int
+    errors: int
+    error_rate: float | None
+    ci_low: float | None
+    ci_high: float | None
+    dwell_count: int
+    mean_dwell_ms: float | None
+    iki_count: int
+    mean_iki_ms: float | None
+    classification: str
+    dwell_flag: str | None
+    reason: str
+    session_count: int
+    # Only the Backspace entry carries this; every other key is ``None``.
+    backspace_presses: int | None = None
+
+
+@dataclass(frozen=True)
+class KeyHeatmap:
+    """Historical per-key statistics plus the classification inputs.
+
+    ``baseline_error_rate`` is ``None`` when the scope holds no observations.
+    ``overall_mean_dwell_ms`` excludes Backspace (``docs/METRICS.md`` §12.3).
+    ``scoped_session_count`` counts every session in scope; each key's
+    ``session_count`` counts only sessions that stored a row for that key.
+    """
+
+    method: str
+    baseline_error_rate: float | None
+    min_observations: int
+    overall_mean_dwell_ms: float | None
+    scoped_session_count: int
+    keys: tuple[HeatmapKey, ...]
+
+
+def aggregate_key_stats(
+    observations: Iterable[KeyStatObservation],
+) -> list[AggregatedKeyStat]:
+    """Sum stored per-session key rows by ``key_code``.
+
+    Only keys that appear in at least one session are returned, ordered by key
+    code. Missing keys are therefore absent here; :func:`build_key_heatmap`
+    adds the unattempted keys from :data:`KEY_CODE_LABELS`.
+    """
+    totals: dict[str, list[float]] = {}
+    sessions: dict[str, set[str]] = {}
+
+    for observation in observations:
+        stat = observation.stat
+        if stat.attempts < 0 or stat.errors < 0:
+            raise ValueError("attempts and errors must not be negative")
+        if stat.errors > stat.attempts:
+            raise ValueError("errors must not exceed attempts")
+        if stat.dwell_count < 0 or stat.iki_count < 0:
+            raise ValueError("counts must not be negative")
+
+        sums = totals.setdefault(
+            stat.key_code,
+            [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+        )
+        sums[0] += stat.attempts
+        sums[1] += stat.errors
+        sums[2] += stat.dwell_count
+        sums[3] += stat.dwell_sum_ms
+        sums[4] += stat.iki_count
+        sums[5] += stat.iki_sum_ms
+        sessions.setdefault(stat.key_code, set()).add(observation.session_id)
+
+    return [
+        AggregatedKeyStat(
+            key_code=code,
+            attempts=int(totals[code][0]),
+            errors=int(totals[code][1]),
+            dwell_count=int(totals[code][2]),
+            dwell_sum_ms=totals[code][3],
+            iki_count=int(totals[code][4]),
+            iki_sum_ms=totals[code][5],
+            session_count=len(sessions[code]),
+        )
+        for code in sorted(totals)
+    ]
+
+
+def _classification_reason(
+    classification: KeyClassification,
+    session_count: int,
+) -> str:
+    """Explain one class in plain words without any significance claim."""
+    if classification.classification == INSUFFICIENT:
+        if classification.attempts == 0 and session_count == 0:
+            return "no recorded attempts"
+        return (
+            f"insufficient data: {classification.attempts} of "
+            f"{HEATMAP_MIN_N} observations"
+        )
+    if classification.classification == WEAK:
+        return (
+            "weak: the confidence interval is above the pooled baseline "
+            f"with at least a {HEATMAP_WEAK_MARGIN:.0%} margin and at least "
+            f"{HEATMAP_WEAK_MIN_X} errors"
+        )
+    if classification.classification == STRONG:
+        return "strong: the error rate is at or below the pooled baseline"
+    return "average: above the baseline but not classified weak"
+
+
+def build_key_heatmap(
+    aggregated: Iterable[AggregatedKeyStat],
+    *,
+    scoped_session_count: int = 0,
+    backspace_presses: int = 0,
+    z: float = HEATMAP_Z,
+) -> KeyHeatmap:
+    """Classify the aggregated keys and add every unattempted key.
+
+    The pooled baseline and the overall mean dwell exclude Backspace
+    (``docs/METRICS.md`` §12.1, §12.3). Only codes in :data:`KEY_CODE_LABELS`
+    are returned; dwell recorded for any other physical code still counts
+    toward ``overall_mean_dwell_ms`` but never becomes a heatmap entry. Every
+    tracked key is returned, so a key with no recorded attempts is
+    distinguishable by ``attempts == 0`` and ``session_count == 0``.
+
+    ``backspace_presses`` is the scope's stored ``session_metrics`` sum. It is
+    kept separate from Backspace's ``dwell_count`` because a press without a
+    valid keyup has no dwell sample.
+    """
+    if scoped_session_count < 0:
+        raise ValueError("scoped_session_count must not be negative")
+    if backspace_presses < 0:
+        raise ValueError("backspace_presses must not be negative")
+
+    rows = list(aggregated)
+    by_code = {row.key_code: row for row in rows}
+    printable = [row for row in rows if row.key_code != BACKSPACE_CODE]
+
+    baseline = pooled_baseline_error_rate(
+        sum(row.errors for row in printable),
+        sum(row.attempts for row in printable),
+    )
+
+    dwell_count = sum(row.dwell_count for row in printable)
+    overall_mean_dwell = (
+        sum(row.dwell_sum_ms for row in printable) / dwell_count
+        if dwell_count > 0
+        else None
+    )
+
+    keys: list[HeatmapKey] = []
+    for code in sorted(KEY_CODE_LABELS):
+        row = by_code.get(code)
+        if row is None:
+            row = AggregatedKeyStat(key_code=code)
+        if baseline is None:
+            classification = KeyClassification(
+                attempts=row.attempts,
+                errors=row.errors,
+                error_rate=row.error_rate,
+                ci_low=None,
+                ci_high=None,
+                classification=INSUFFICIENT,
+            )
+        else:
+            classification = classify_observation(
+                row.attempts,
+                row.errors,
+                baseline,
+                z=z,
+            )
+        keys.append(
+            HeatmapKey(
+                key_code=code,
+                label=KEY_CODE_LABELS[code],
+                attempts=row.attempts,
+                errors=row.errors,
+                error_rate=classification.error_rate,
+                ci_low=classification.ci_low,
+                ci_high=classification.ci_high,
+                dwell_count=row.dwell_count,
+                mean_dwell_ms=row.mean_dwell_ms,
+                iki_count=row.iki_count,
+                mean_iki_ms=row.mean_iki_ms,
+                classification=classification.classification,
+                dwell_flag=None,
+                reason=(
+                    "not classified: Backspace reports press count and dwell"
+                    if code == BACKSPACE_CODE
+                    else _classification_reason(
+                        classification,
+                        row.session_count,
+                    )
+                ),
+                session_count=row.session_count,
+                backspace_presses=(
+                    backspace_presses if code == BACKSPACE_CODE else None
+                ),
+            )
+        )
+
+    return KeyHeatmap(
+        method=HEATMAP_METHOD,
+        baseline_error_rate=baseline,
+        min_observations=HEATMAP_MIN_N,
+        overall_mean_dwell_ms=overall_mean_dwell,
+        scoped_session_count=scoped_session_count,
+        keys=tuple(keys),
+    )

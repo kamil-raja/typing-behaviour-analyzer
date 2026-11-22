@@ -233,13 +233,15 @@
 ## Day 3 — Heatmap, Polish, Delivery
 
 ### P0-D3-01: Key stats aggregation and heatmap API
-- [ ] Implement `GET /api/analytics/keys?scope=` in `repository.py` and `api.py`
-  - Aggregate `SUM(attempts), SUM(errors), SUM(dwell_sum_ms), SUM(dwell_count), SUM(iki_sum_ms), SUM(iki_count)` per `key_code`
+- [x] Implement `GET /api/analytics/keys?scope=` in `repository.py` and `api.py`
+  - Aggregate the additive per-session rows per `key_code` in `engine/keys.py` (`aggregate_key_stats`), not with SQL `SUM()`
   - Compute baseline error rate, Wilson CI, classification per key using `engine/keys.py`
-  - Return `{ method, baseline_error_rate, min_observations, overall_mean_dwell_ms, keys: [...] }`
-- [ ] `method` field value: `"wilson_vs_pooled_baseline_heuristic"`
-- [ ] Write tests in `tests/test_keys.py` for the full classification pipeline
-- [ ] **Acceptance:** API returns correct classification; `pytest` green
+  - Return `{ scope, method, baseline_error_rate, min_observations, overall_mean_dwell_ms, scoped_session_count, keys: [...] }`
+- [x] `method` field value: `"wilson_vs_pooled_baseline_heuristic"`
+- [x] Write tests in `tests/test_keys.py` for the full classification pipeline
+- [x] **Acceptance:** API returns correct classification; `pytest` green. `pytest tests/ -q`: **545 passed** (516 previous + 29 new: 16 engine aggregation/classification cases and 13 endpoint cases).
+- [x] **Files touched:** `app/engine/keys.py`, `app/repository.py`, `app/routes/api.py`, `tests/test_keys.py`, `tests/test_analytics.py`, `docs/DECISIONS.md` (ADR-039), `docs/METRICS.md` (§12.4), `docs/ARCHITECTURE.md` (§2, §4), `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- [ ] **Commit:** `feat(analytics): add historical key stats and heatmap API` — not performed; commits require explicit approval
 
 ### P0-D3-02: Heatmap UI
 - [ ] Implement `app/templates/keyboard.html` and `app/static/js/keyboard-heatmap.js`

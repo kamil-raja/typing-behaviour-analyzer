@@ -30,7 +30,7 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 
 ---
 
-## Current State (as of 2026-11-14)
+## Current State (as of 2026-11-21)
 
 ### Development server (Windows)
 
@@ -51,13 +51,37 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 | Field | Value |
 |---|---|
-| **Branch** | `database-version` (in sync with `origin/database-version`) |
-| **Status** | Uncommitted P0-D2-07 work: modified `app/repository.py`, `app/__init__.py`, `docs/DECISIONS.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`; new `app/exporters.py`, `app/routes/exports.py`, `tests/test_exports.py` |
-| **Last commit** | `1712a54 feat(analytics): add typing progress charts` (P0-D2-06) |
+| **Branch** | `full-project` (P0-D3-01 work is uncommitted) |
+| **Status** | Uncommitted P0-D3-01 work: modified `app/engine/keys.py`, `app/repository.py`, `app/routes/api.py`, `tests/test_keys.py`, `tests/test_analytics.py`, `docs/DECISIONS.md`, `docs/METRICS.md`, `docs/ARCHITECTURE.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md` |
+| **Last commit** | `06fa0d5 merge: integrate database version into full project` |
 | **Tags** | None yet |
-| **Commit/push** | **None performed by this agent.** P0-D1-01–P0-D1-10 were committed as `9c02975`, `147ec1e`, `e9e2215`, `61d8c36`, `55130e1`, `1c0137a`, `4599be0`, `3cc8a56`, `20864ab`, `40e41dc`; the dev-server fix as `8a940b4`; P0-D2-01 as `8b1e811`; P0-D2-02 as `4992846`; P0-D2-03 as `661200f`; P0-D2-04 as `3ee469a`; P0-D2-05 as `e0d6d7d`; P0-D2-06 as `1712a54` (all committed externally). This agent composes working-tree changes only. |
+| **Commit/push** | **None performed by this agent.** Earlier milestones were committed externally (`9c02975`…`1712a54`, then `ba5e7e6` for P0-D2-07 and `06fa0d5` for the merge). This agent composes working-tree changes only. |
 
 `.venv/`, `__pycache__/`, and `instance/` (including `instance/typing.db` created by the first-run check) are ignored and are not part of the working-tree changes.
+
+### Completed This Session — P0-D3-01 Historical key stats aggregation and heatmap API
+
+| File | Purpose |
+|---|---|
+| `app/engine/keys.py` | `KEY_CODE_LABELS` (all `CHAR_TO_CODE` codes plus Backspace), `BACKSPACE_CODE`, `HEATMAP_METHOD`, `KeyStatObservation`, `AggregatedKeyStat`, `HeatmapKey`, `KeyHeatmap`, `aggregate_key_stats()`, `build_key_heatmap()`; Wilson/baseline/classification helpers reused unchanged |
+| `app/repository.py` | `list_scoped_key_stats(limit)`: scoped per-session `session_key_stats` rows, the scoped session count and the scoped `SUM(session_metrics.backspace_presses)`; still the only SQL owner |
+| `app/routes/api.py` | `GET /api/analytics/keys?scope=`; reuses `PROGRESS_SCOPES`/`PROGRESS_DEFAULT_SCOPE` and `_invalid_scope`; `_key_heatmap_payload()` renames `key_code`→`code` and `classification`→`class` |
+| `tests/test_keys.py` | 16 aggregation/classification cases: additive sums, weighted error rate, missing/empty stats, Backspace dwell-only, press-without-keyup, untracked-code filtering, label coverage, weak/average/strong, n = 19 grey, unattempted keys, baseline/dwell exclusions, empty history, Wilson(3, 20) reference, config-driven weak reason |
+| `tests/test_analytics.py` | 13 endpoint cases: empty history, five invalid scopes, cross-session aggregation, scope isolation, sessions without key stats, full response shape/classification, Backspace press count vs dwell, newly persisted session, route layering; shared `_insert_key_stat()`/`_post_text_session()` helpers |
+| `docs/DECISIONS.md` | ADR-039 (scope, layering, aggregation math, Backspace presses, untracked codes, response additions, performance trigger) |
+| `docs/METRICS.md` | §12.4 historical aggregation formulas |
+| `docs/ARCHITECTURE.md` | §2 and §4 corrected: repository filters, engine aggregates/classifies |
+
+- **Scope:** `last_10`, `last_30`, `all` (default `all`), the most recent N sessions by `created_at DESC, id DESC` over `sessions JOIN session_metrics`, exactly like the progress endpoint; invalid scopes return `422 VALIDATION_ERROR` with `field: "scope"`. The endpoint reuses the progress constants rather than a second parser.
+- **Aggregation:** `n_k = Σ n_{k,s}`, `x_k = Σ x_{k,s}`, `e_k = x_k / n_k`; per-key `session_count` is the number of distinct sessions with a row. Dwell/IKI sums are added before their means. `b = max(Σx/Σn, 0.01)` over all keys except Backspace; `overall_mean_dwell_ms` also excludes Backspace. The sums are computed in `engine.keys.aggregate_key_stats()` from the scoped rows (ADR-039).
+- **Classification:** the existing `pooled_baseline_error_rate()` and `classify_observation()` are reused unchanged; `n < 20` is `insufficient` with `ci_low`/`ci_high` null. `reason` is plain language, built from `HEATMAP_WEAK_MARGIN`/`HEATMAP_WEAK_MIN_X`, with no significance claim. `dwell_flag` is `null` in v1 (dwell mode is P1).
+- **Response:** `{ scope, method, baseline_error_rate, min_observations, overall_mean_dwell_ms, scoped_session_count, keys: [...] }`. `scoped_session_count` counts every session in scope; each key's `session_count` counts only sessions that stored a row for that key. Each key carries `code,label,attempts,errors,error_rate,ci_low,ci_high,dwell_count,mean_dwell_ms,iki_count,mean_iki_ms,class,dwell_flag,reason,session_count,backspace_presses`; `backspace_presses` is the scope total on the Backspace entry and `null` elsewhere. `error_rate` is a ratio (0–1).
+- **Key coverage:** all 48 mapped US-QWERTY codes plus Backspace are always returned. Never-attempted keys have `attempts = 0`, `session_count = 0` and `reason: "no recorded attempts"`. Dwell from untracked physical codes (e.g. `ShiftLeft`) still feeds `overall_mean_dwell_ms` but never becomes a heatmap entry.
+- **Backspace:** presses come from `SUM(session_metrics.backspace_presses)`, kept separate from `dwell_count` (a press without a valid keyup has no dwell sample); Backspace is never classified.
+- **Empty history:** `200` with every key grey, `baseline_error_rate: null`, `overall_mean_dwell_ms: null`, `scoped_session_count: 0`.
+- **HTTP smoke test:** an isolated server on port 5001 with a temporary database returned `200` for `/api/analytics/keys?scope=all` and `?scope=last_10`; after `POST /api/sessions` (`201`), the same endpoint returned `scoped_session_count: 1` and the stored KeyA attempts. Invalid `scope=recent` returned `422 VALIDATION_ERROR`.
+- `pytest tests/test_keys.py -q`: **49 passed**; `pytest tests/test_analytics.py -q`: **25 passed**; `pytest tests/ -q`: **545 passed** (516 previous + 29 new).
+- **P0-D3-01 is complete.**
 
 ### Completed This Session — P0-D2-07 Sessions CSV export
 
@@ -416,12 +440,13 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 ### Verification
 
-- `python -m pytest tests\ -q`: **516 passed** (8 fixture checks, 4 infrastructure/frontend checks, 18 API/page cases, 24 replay tests, 58 metric tests, 33 key tests, 190 validator cases, 76 text-resolution cases, 41 session/results/history cases, 12 analytics cases, 9 export cases, 25 schema/connection cases, 11 repository tests, 7 typing-screen contracts). The session cases cover detail, history pagination, tooltips, data quality and conditional `Eu`; the analytics cases cover the progress series and chart contracts; the export cases cover the CSV contract and layer separation.
+- `python -m pytest tests\ -q`: **545 passed** (8 fixture checks, 4 infrastructure/frontend checks, 18 API/page cases, 24 replay tests, 58 metric tests, 49 key tests, 190 validator cases, 76 text-resolution cases, 41 session/results/history cases, 25 analytics cases, 9 export cases, 25 schema/connection cases, 11 repository tests, 7 typing-screen contracts). The session cases cover detail, history pagination, tooltips, data quality and conditional `Eu`; the analytics cases cover the progress series, chart contracts and the historical key endpoint; the key cases cover aggregation, Wilson classification, Backspace presses and unattempted keys; the export cases cover the CSV contract and layer separation.
 - `GET /` returns **200** and renders `test.html`. `GET /api/texts/passages`, `/api/texts/passages/p_001` and `/api/texts/words?count=200` all return **200** with the ADR-029 shapes; unknown passages return **404 TEXT_NOT_FOUND**; invalid counts return **422 VALIDATION_ERROR** with `field: "count"`.
 - `POST /api/sessions` returns **201** with the documented `{session_id, metrics, warnings, links}` shape; malformed JSON is **400 INVALID_JSON**, schema failures are **422 VALIDATION_ERROR**, oversized bodies are **413 PAYLOAD_TOO_LARGE**, unknown passages are **404 TEXT_NOT_FOUND**, invalid sequences are **422 INVALID_EVENT_SEQUENCE**, incomplete passages are **422 INCOMPLETE_SESSION**, and short sessions are **422 SESSION_TOO_SHORT**.
 - `GET /api/sessions/<id>` returns **200** with `{ session, metrics, key_stats }` (ADR-035); an unknown id returns **404 NOT_FOUND** with `field: "session_id"`. The route reads only through `SessionRepository.get()`/`get_key_stats()`.
 - `GET /api/sessions?limit=&offset=` returns **200** with `{ items, total }` (ADR-036); `limit` defaults to 25 and accepts 1–100, `offset` defaults to 0; invalid values return **422 VALIDATION_ERROR** with `field` `limit` or `offset`. `GET /history` returns **200**, renders the six-column table shell, the empty state text and the pagination controls, and loads `js/history-page.js`. Chromium check against 30 seeded sessions: 25 rows on page 1, 5 on page 2, correct disabled states, row click opens `/results/<id>`.
 - `GET /api/analytics/progress?scope=` returns **200** with `{ scope, window, sessions }` (ADR-037). Sessions are oldest first and carry both stored values and the server-computed moving averages. `scope` defaults to `all`; `last_10`, `last_30` and `all` are accepted; anything else is **422 VALIDATION_ERROR** with `field: "scope"`. `GET /analytics` returns **200**, renders the scope toggle, both chart sections, the "what to look for" lines, the vendor Chart.js script and `js/analytics-page.js`; the in-app Chromium check against 7 seeded sessions showed both charts, scope switching, theme recolouring without reload, the empty state and navigation, with no console errors.
+- `GET /api/analytics/keys?scope=` returns **200** with `{ scope, method, baseline_error_rate, min_observations, overall_mean_dwell_ms, scoped_session_count, keys }` (ADR-039). Every mapped US-QWERTY key plus Backspace is present; `class` is `weak`/`average`/`strong`/`insufficient`, `error_rate` is a ratio, and Backspace carries its stored press total separately from dwell. Untracked physical codes never become entries. `scope` defaults to `all`; `last_10`, `last_30` and `all` are accepted; anything else is **422 VALIDATION_ERROR** with `field: "scope"`. An empty database returns all keys grey with a null baseline. `tests/test_keys.py` covers the aggregation/classification pipeline and `tests/test_analytics.py` covers the endpoint, including scope isolation.
 - `GET /api/export/sessions.csv` returns **200** with `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="sessions.csv"`, a UTF-8 BOM, the 14 blueprinted columns and every stored session newest first (ADR-038). NULL metrics are empty cells and formula-like cells get a leading `'`. An empty database returns the BOM plus the header row. The real-HTTP check submitted one session (`201`) and downloaded it with values identical to the stored metrics; `tests/test_exports.py -q` passes 9 cases.
 - `GET /` renders the polished typing screen: config strip (mode/time/passage), live row `hidden` with the `provisional` badge, three-line viewport with `tabindex="0"` and the documented `aria-label`, and the `esc restart` footer. Character states are token-based and `test.css` has no hex colours. The caret is line-box anchored; in the in-app Chromium tab its final geometry was `38.5–77 px` inside the `115.5 px` window (visible line 2) at 90, 120, 150, 180 and 200 typed characters. A wrong full passage shows `Fix the highlighted characters to finish`, Backspace clears it, Esc returns to idle, and a 15 s time-up with three keystrokes shows `Too short to save.` (422, nothing saved). A synthetic `blur` during a run shows `Test cancelled. The window lost focus.` and the next keystroke starts a fresh attempt. Native desktop keystrokes could not be injected (window not visible), so this was DOM-event verification.
 - `GET /results/<id>` renders the persisted server metrics from `SessionRecord`; an unknown id returns **404**. The results template distinguishes unavailable (`—`) from zero, shows `Eu` only when non-zero, and shows the Data quality section only when warnings exist or `zero_interval_count > 0`. Every metric label carries an accessible `?` tooltip (`button[data-metric-help]` + `role="tooltip"`), wired by `app/static/js/results-page.js`.
@@ -440,20 +465,20 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 ## Exact Next Task
 
-**Task ID:** P0-D3-01
-**Title:** Key stats aggregation and heatmap API
+**Task ID:** P0-D3-02
+**Title:** Heatmap UI
 
 **Scope (from `docs/TASKS.md`):**
-1. Implement `GET /api/analytics/keys?scope=` in `repository.py` and `api.py`; aggregate the additive `session_key_stats` sums per `key_code` with the same scope values as the progress endpoint.
-2. Reuse `engine/keys.py` (`pooled_baseline_error_rate()`, `classify_key_stat()`) for the baseline, Wilson interval and classification; return `{ method: "wilson_vs_pooled_baseline_heuristic", baseline_error_rate, min_observations, overall_mean_dwell_ms, keys: [...] }`.
-3. Write the full classification-pipeline tests in `tests/test_keys.py` (and endpoint tests beside the existing analytics cases).
-4. **Acceptance:** API returns the correct classification; `pytest` green.
+1. Implement `app/templates/keyboard.html`, `app/static/js/keyboard-heatmap.js` and `app/static/css/keyboard.css`.
+2. Render the ANSI 15-unit keyboard as `<button>` elements and colour keys by the `class` returned by `GET /api/analytics/keys?scope=`; grey/no-glyph for `insufficient`.
+3. Legend with text + glyphs, click-to-pin inspector (n, x, error rate + CI, dwell, IKI, class + reason), "Weakest keys" and "Needs more data" lists.
+4. Backspace shows press count and dwell only; non-tracked keys are neutral; colour is never the only cue.
+5. **Acceptance:** heatmap renders; inspector works; `pytest` green.
 
 **Starting point:**
-- P0-D2-07 is complete: `GET /api/export/sessions.csv` is live; `pytest tests/ -q`: **516 passed**.
-- `app/repository.py` remains the single SQL owner; routes stay free of SQL and metric math.
-- `GET /api/analytics/progress?scope=` already validates `last_10`/`last_30`/`all`; reuse that convention rather than inventing a second scope parser.
-- No endpoint exists for `/api/analytics/keys` yet; `classify_observation()`, `pooled_baseline_error_rate()` and `classify_key_stat()` are ready but unwired.
+- P0-D3-01 is complete: `GET /api/analytics/keys?scope=` is live (ADR-039); `pytest tests/ -q`: **545 passed**.
+- The API already returns every key with `label`, `class`, `reason`, `session_count`, dwell/IKI values, Backspace's `backspace_presses`, and `null` for unattempted keys. `dwell_flag` is `null` in v1.
+- `/keyboard` still 404s and the nav entry is a literal path (ADR-028); switch it to `url_for('pages.keyboard_page')` when the page endpoint lands.
 - Do not commit or push without approval.
 
 ---
@@ -467,11 +492,11 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 5. **`docs/UI_DESIGN.md` §7** references `docs/METRICS.md` §6 for the Wilson heuristic; it should be §12. Correct during UI documentation cleanup.
 6. **`README.md`** is absent; leave for P0-D3-05.
 7. **`app/routes/__init__.py`** now exists as the route package docstring; `pages.py` and `api.py` live beside it and are registered in `create_app()`.
-8. **HEAD is `1712a54 feat(analytics): add typing progress charts`** (P0-D2-06) on `database-version`. The only uncommitted work is the complete P0-D2-07 (sessions CSV export) and its doc updates. Do not commit or push without approval.
+8. **HEAD is `06fa0d5 merge: integrate database version into full project`** on `full-project`. The only uncommitted work is the complete P0-D3-01 (historical key stats API) and its doc updates. Do not commit or push without approval.
 9. **Fixture A's IKI values are null by decision.** The §13 row's mean/SD arithmetic conflicts with §8.5; the author ruled §8.5 wins (ADR-023). Do not "fix" this by restoring `800.0`/`0.0`.
 10. **`session_key_stats` rows are now stored** with every session (`executemany` in the same transaction as the session row, ADR-034); `get_key_stats(id)` reads them back ordered by key code.
-11. **Heatmap classification is not yet wired to an endpoint.** `classify_observation()` and `pooled_baseline_error_rate()` are reused by P0-D3-01; do not duplicate the formula in routes or SQL.
-12. **`/`, `/history` and `/analytics` are live; `keyboard` still 404s.** Its literal nav path is deliberate until the P0-D3-02 page endpoint lands (ADR-028); then switch that entry to `url_for`. `/history` and `/analytics` already do.
+11. **The heatmap API is layered (ADR-039).** `SessionRepository.list_scoped_key_stats()` filters the scoped per-session rows, `engine.keys.aggregate_key_stats()` sums them and `build_key_heatmap()` computes the baseline, Wilson intervals and classes. Do not move the `SUM()` into SQL, the classification into the route, or duplicate the formula in JavaScript. `error_rate` is a ratio (0–1), and every mapped key is returned so "never attempted" is explicit.
+12. **`/`, `/history` and `/analytics` are live; `keyboard` still 404s.** Its literal nav path is deliberate until the P0-D3-02 page endpoint lands (ADR-028); then switch that entry to `url_for`. `/history` and `/analytics` already do. The API it will consume is already live.
 13. **Chart.js is vendored and loaded only by `analytics.html`.** Do not add it to `base.html`; the other pages have no charts.
 14. **Only the latin font subsets are vendored.** All app content is ASCII 32–126. Out-of-subset glyphs use the documented fallback stacks; add subsets only with a new ADR and the corresponding licence/version note.
 15. **The inline theme script and `theme.js` deliberately split responsibilities.** First paint belongs to the inline script; later toggles belong to `theme.js`. Do not move the storage read into the module, or a reload will flash the wrong theme.

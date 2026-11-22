@@ -31,6 +31,7 @@ from ..config import (
     WORD_COUNT_MIN,
 )
 from ..engine import analyze_session
+from ..engine.keys import KeyHeatmap, aggregate_key_stats, build_key_heatmap
 from ..engine.metrics import trailing_moving_average
 from ..engine.replay import END_COMPLETED, InvalidEventSequence
 from ..errors import (
@@ -99,13 +100,31 @@ def _invalid_pagination(field: str, problem: str) -> tuple[Response, int]:
 
 
 def _invalid_scope(problem: str) -> tuple[Response, int]:
-    """Return the documented validation error for the progress scope."""
+    """Return the documented validation error for an analytics scope."""
     return json_error(
         VALIDATION_ERROR,
         "The scope query parameter is invalid.",
         [{"field": "scope", "problem": problem}],
         status=422,
     )
+
+
+def _key_heatmap_payload(summary: KeyHeatmap) -> dict[str, Any]:
+    """Serialise the engine's heatmap, renaming two fields to the API names."""
+    keys: list[dict[str, Any]] = []
+    for key in summary.keys:
+        item = asdict(key)
+        item["code"] = item.pop("key_code")
+        item["class"] = item.pop("classification")
+        keys.append(item)
+    return {
+        "method": summary.method,
+        "baseline_error_rate": summary.baseline_error_rate,
+        "min_observations": summary.min_observations,
+        "overall_mean_dwell_ms": summary.overall_mean_dwell_ms,
+        "scoped_session_count": summary.scoped_session_count,
+        "keys": keys,
+    }
 
 
 def _session_metrics(record: SessionRecord) -> dict[str, Any]:
@@ -422,6 +441,32 @@ def get_progress() -> Response | tuple[Response, int]:
             "sessions": sessions,
         }
     )
+
+
+@api_bp.get("/analytics/keys")
+def get_key_heatmap() -> Response | tuple[Response, int]:
+    """Return historical per-key statistics with the heatmap classification.
+
+    The repository selects the scoped per-session rows; the engine aggregates
+    and classifies them. The route only validates the scope and shapes JSON.
+    """
+    raw_scope = request.args.get("scope", PROGRESS_DEFAULT_SCOPE)
+    if raw_scope not in PROGRESS_SCOPES:
+        return _invalid_scope(
+            f"must be one of {', '.join(PROGRESS_SCOPES)}"
+        )
+
+    repository: SessionRepository = current_app.extensions[STORE_EXTENSION_KEY]
+    observations, scoped_session_count, backspace_presses = (
+        repository.list_scoped_key_stats(PROGRESS_SCOPES[raw_scope])
+    )
+    summary = build_key_heatmap(
+        aggregate_key_stats(observations),
+        scoped_session_count=scoped_session_count,
+        backspace_presses=backspace_presses,
+    )
+
+    return jsonify({"scope": raw_scope, **_key_heatmap_payload(summary)})
 
 
 @api_bp.get("/sessions/<session_id>")

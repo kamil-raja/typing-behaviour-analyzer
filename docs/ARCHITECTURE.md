@@ -44,8 +44,8 @@ SQLite  (instance/typing.db)
 |---|---|---|
 | **Browser JS** | Capture events; show provisional live WPM/accuracy; submit the event array once at test end | Compute stored or final statistics; send `ended_at_ms` or `end_reason`; send the passage text |
 | **Routes** | Parse request, call validators → engine → repository, shape JSON responses | Contain metric math or SQL |
-| **Engine** | Replay events, classify keystrokes, compute all metrics, classify heatmap keys | Make HTTP calls or touch the database |
-| **Repository** | Execute all SQL (reads, writes, aggregations) | Compute metrics |
+| **Engine** | Replay events, classify keystrokes, compute all metrics, aggregate historical key stats, classify heatmap keys | Make HTTP calls or touch the database |
+| **Repository** | Execute all SQL (reads, writes, scope filtering) | Compute metrics or aggregate key statistics |
 | **Validators** | Validate schema, ASCII constraints, event-sequence integrity | Contain metric math or business logic |
 
 ---
@@ -77,10 +77,10 @@ SQLite  (instance/typing.db)
 
 ```
 GET /api/analytics/keys?scope=all
-  → repository: SELECT SUM(attempts), SUM(errors), SUM(dwell_sum_ms), ...
-                FROM session_key_stats GROUP BY key_code
-  → engine/keys.py: Wilson interval + classification per key
-  → route: shape JSON { method, baseline_error_rate, keys: [...] }
+  → repository: SELECT the scoped per-session rows from session_key_stats
+                plus the scoped session count and SUM(session_metrics.backspace_presses)
+  → engine/keys.py: aggregate the additive sums, Wilson interval + classification per key
+  → route: shape JSON { method, baseline_error_rate, scoped_session_count, keys: [...] }
   → keyboard-heatmap.js: render <button> keyboard, colour by class
 ```
 

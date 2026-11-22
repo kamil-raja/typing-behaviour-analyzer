@@ -16,14 +16,22 @@ from typing import Any
 
 import pytest
 
+from app.config import HEATMAP_WEAK_MARGIN, HEATMAP_WEAK_MIN_X
 from app.engine import analyze_session
 from app.engine.keys import (
     AVERAGE,
+    BACKSPACE_CODE,
     CHAR_TO_CODE,
+    HEATMAP_METHOD,
     INSUFFICIENT,
+    KEY_CODE_LABELS,
     STRONG,
     WEAK,
+    AggregatedKeyStat,
+    KeyStatObservation,
     SessionKeyStat,
+    aggregate_key_stats,
+    build_key_heatmap,
     classify_key,
     classify_key_stat,
     classify_observation,
@@ -475,3 +483,329 @@ def test_analyze_session_exposes_raw_and_merged_key_stats() -> None:
     assert analysis.key_stats.observations_by_char["t"].attempts == 2
     assert analysis.session_key_stats["KeyT"].attempts == 2
     assert analysis.session_key_stats["KeyT"].errors == 1
+
+
+# --- Historical aggregation and heatmap -----------------------------------
+
+
+def observation(
+    session_id: str,
+    key_code: str,
+    *,
+    attempts: int = 0,
+    errors: int = 0,
+    dwell_count: int = 0,
+    dwell_sum_ms: float = 0.0,
+    iki_count: int = 0,
+    iki_sum_ms: float = 0.0,
+) -> KeyStatObservation:
+    """Build one stored per-session key row."""
+    return KeyStatObservation(
+        session_id=session_id,
+        stat=SessionKeyStat(
+            key_code=key_code,
+            attempts=attempts,
+            errors=errors,
+            dwell_count=dwell_count,
+            dwell_sum_ms=dwell_sum_ms,
+            iki_count=iki_count,
+            iki_sum_ms=iki_sum_ms,
+        ),
+    )
+
+
+def test_aggregate_sums_sessions_and_counts_contributors() -> None:
+    """Per-key sums add up and the error rate comes from the totals."""
+    aggregated = aggregate_key_stats(
+        [
+            observation(
+                "s1",
+                "KeyA",
+                attempts=10,
+                errors=1,
+                dwell_count=10,
+                dwell_sum_ms=1_000.0,
+                iki_count=9,
+                iki_sum_ms=900.0,
+            ),
+            observation(
+                "s2",
+                "KeyA",
+                attempts=90,
+                errors=18,
+                dwell_count=80,
+                dwell_sum_ms=8_000.0,
+                iki_count=70,
+                iki_sum_ms=7_000.0,
+            ),
+            observation("s1", "KeyB", attempts=5),
+        ]
+    )
+
+    key_a, key_b = aggregated
+    assert key_a.key_code == "KeyA"
+    assert key_a.attempts == 100
+    assert key_a.errors == 19
+    assert key_a.error_rate == pytest.approx(0.19)
+    assert key_a.dwell_count == 90
+    assert key_a.mean_dwell_ms == pytest.approx(100.0)
+    assert key_a.iki_count == 79
+    assert key_a.mean_iki_ms == pytest.approx(100.0)
+    assert key_a.session_count == 2
+    assert key_b.session_count == 1
+
+
+def test_aggregate_does_not_average_session_percentages() -> None:
+    """Unequal samples are weighted by attempts, not averaged by session."""
+    aggregated = aggregate_key_stats(
+        [
+            observation("s1", "KeyA", attempts=10, errors=1),
+            observation("s2", "KeyA", attempts=90, errors=18),
+        ]
+    )
+
+    assert aggregated[0].error_rate == pytest.approx(19 / 100)
+    assert aggregated[0].error_rate != pytest.approx((0.1 + 0.2) / 2)
+
+
+def test_aggregate_handles_missing_and_empty_statistics() -> None:
+    """Absent keys stay absent; an empty scope aggregates to nothing."""
+    assert aggregate_key_stats([]) == []
+    aggregated = aggregate_key_stats([observation("s1", "KeyA", attempts=3)])
+    assert [row.key_code for row in aggregated] == ["KeyA"]
+
+
+def test_aggregate_keeps_backspace_dwell_only() -> None:
+    """Backspace has no observations but still aggregates its dwell."""
+    aggregated = aggregate_key_stats(
+        [
+            observation("s1", "Backspace", dwell_count=1, dwell_sum_ms=300.0),
+            observation("s2", "Backspace", dwell_count=1, dwell_sum_ms=400.0),
+        ]
+    )
+
+    backspace = aggregated[0]
+    assert backspace.key_code == BACKSPACE_CODE
+    assert backspace.attempts == 0
+    assert backspace.errors == 0
+    assert backspace.error_rate is None
+    assert backspace.dwell_count == 2
+    assert backspace.mean_dwell_ms == pytest.approx(350.0)
+    assert backspace.session_count == 2
+
+
+def test_aggregate_rejects_invalid_counts() -> None:
+    """More errors than attempts is a programming error."""
+    with pytest.raises(ValueError):
+        aggregate_key_stats([observation("s1", "KeyA", attempts=1, errors=2)])
+    with pytest.raises(ValueError):
+        aggregate_key_stats([observation("s1", "KeyA", attempts=-1)])
+
+
+def test_key_labels_cover_every_tracked_key() -> None:
+    """Every mapped code plus Backspace has one printable label."""
+    assert set(KEY_CODE_LABELS) == set(CHAR_TO_CODE.values()) | {BACKSPACE_CODE}
+    assert len(set(KEY_CODE_LABELS.values())) == len(KEY_CODE_LABELS)
+    assert all(
+        label and all(32 <= ord(char) <= 126 for char in label)
+        for label in KEY_CODE_LABELS.values()
+    )
+
+
+def test_heatmap_classifies_aggregated_keys_and_computes_ci() -> None:
+    """The pooled baseline drives weak, strong and average classes."""
+    aggregated = [
+        AggregatedKeyStat(
+            key_code="KeyA", attempts=20, errors=6, session_count=2
+        ),
+        AggregatedKeyStat(
+            key_code="KeyB", attempts=180, errors=17, session_count=1
+        ),
+    ]
+
+    heatmap = build_key_heatmap(aggregated, scoped_session_count=2)
+    by_code = {key.key_code: key for key in heatmap.keys}
+
+    assert heatmap.method == HEATMAP_METHOD
+    assert heatmap.min_observations == 20
+    assert heatmap.scoped_session_count == 2
+    assert heatmap.baseline_error_rate == pytest.approx(23 / 200)
+
+    key_a = by_code["KeyA"]
+    assert key_a.classification == WEAK
+    assert key_a.ci_low == pytest.approx(wilson_ci(6, 20)[0])
+    assert key_a.ci_high == pytest.approx(wilson_ci(6, 20)[1])
+    assert key_a.error_rate == pytest.approx(0.30)
+    assert "weak" in key_a.reason
+
+    assert by_code["KeyB"].classification == STRONG
+
+
+def test_heatmap_average_when_above_baseline_but_not_weak() -> None:
+    """A rate above the baseline without a clear margin stays average."""
+    heatmap = build_key_heatmap(
+        [
+            AggregatedKeyStat(key_code="KeyA", attempts=20, errors=3),
+            AggregatedKeyStat(key_code="KeyB", attempts=180, errors=17),
+        ]
+    )
+    key_a = next(key for key in heatmap.keys if key.key_code == "KeyA")
+
+    assert heatmap.baseline_error_rate == pytest.approx(0.10)
+    assert key_a.classification == AVERAGE
+    assert "average" in key_a.reason
+
+
+def test_heatmap_insufficient_samples_stay_grey() -> None:
+    """n = 19 never gets an interval, even with a high error rate."""
+    heatmap = build_key_heatmap(
+        [AggregatedKeyStat(key_code="KeyA", attempts=19, errors=10)],
+        scoped_session_count=1,
+    )
+    key_a = next(key for key in heatmap.keys if key.key_code == "KeyA")
+
+    assert key_a.classification == INSUFFICIENT
+    assert key_a.error_rate == pytest.approx(10 / 19)
+    assert key_a.ci_low is None
+    assert key_a.ci_high is None
+    assert key_a.reason == "insufficient data: 19 of 20 observations"
+
+
+def test_heatmap_includes_unattempted_keys() -> None:
+    """Every mapped key is returned; a never-typed key is explicit."""
+    heatmap = build_key_heatmap(
+        [AggregatedKeyStat(key_code="KeyA", attempts=20, errors=0)],
+        scoped_session_count=1,
+    )
+
+    assert len(heatmap.keys) == len(KEY_CODE_LABELS)
+    key_q = next(key for key in heatmap.keys if key.key_code == "KeyQ")
+    assert key_q.attempts == 0
+    assert key_q.session_count == 0
+    assert key_q.classification == INSUFFICIENT
+    assert key_q.reason == "no recorded attempts"
+    assert key_q.dwell_flag is None
+
+
+def test_heatmap_excludes_backspace_from_baseline_and_overall_dwell() -> None:
+    """Backspace contributes neither error observations nor overall dwell."""
+    heatmap = build_key_heatmap(
+        [
+            AggregatedKeyStat(
+                key_code="KeyA",
+                attempts=20,
+                errors=2,
+                dwell_count=20,
+                dwell_sum_ms=2_000.0,
+            ),
+            AggregatedKeyStat(
+                key_code="Backspace",
+                dwell_count=1,
+                dwell_sum_ms=5_000.0,
+            ),
+        ],
+        scoped_session_count=1,
+    )
+    by_code = {key.key_code: key for key in heatmap.keys}
+
+    assert heatmap.baseline_error_rate == pytest.approx(0.10)
+    assert heatmap.overall_mean_dwell_ms == pytest.approx(100.0)
+    assert by_code["Backspace"].attempts == 0
+    assert by_code["Backspace"].classification == INSUFFICIENT
+    assert by_code["Backspace"].mean_dwell_ms == pytest.approx(5_000.0)
+    assert by_code["Backspace"].reason == (
+        "not classified: Backspace reports press count and dwell"
+    )
+
+
+def test_heatmap_empty_history_has_no_baseline() -> None:
+    """An empty scope returns every key as grey, with no baseline."""
+    heatmap = build_key_heatmap([], scoped_session_count=0)
+
+    assert heatmap.baseline_error_rate is None
+    assert heatmap.overall_mean_dwell_ms is None
+    assert {key.classification for key in heatmap.keys} == {INSUFFICIENT}
+    assert {key.attempts for key in heatmap.keys} == {0}
+
+
+def test_heatmap_uses_the_documented_weak_reference_value() -> None:
+    """Wilson(3, 20) keeps the blueprint's reference interval."""
+    heatmap = build_key_heatmap(
+        [AggregatedKeyStat(key_code="KeyA", attempts=20, errors=3)]
+    )
+    key_a = next(key for key in heatmap.keys if key.key_code == "KeyA")
+
+    assert key_a.ci_low == pytest.approx(0.052, abs=0.001)
+    assert key_a.ci_high == pytest.approx(0.360, abs=0.001)
+
+
+def test_backspace_press_without_keyup_has_no_dwell_sample() -> None:
+    """Presses come from session_metrics; dwell needs a paired valid keyup."""
+    events = [
+        down(0, 0, "a", "KeyA"),
+        up(1, 100, "KeyA"),
+        backspace(2, 200),
+    ]
+    analysis = analyze_session(
+        text="ab",
+        mode="passage",
+        duration_limit_ms=None,
+        events=events,
+    )
+
+    assert analysis.metrics.backspace_presses == 1
+    assert BACKSPACE_CODE not in analysis.session_key_stats
+
+    heatmap = build_key_heatmap(
+        [AggregatedKeyStat(key_code="KeyA", attempts=1, errors=0)],
+        scoped_session_count=1,
+        backspace_presses=analysis.metrics.backspace_presses,
+    )
+    backspace_key = next(
+        key for key in heatmap.keys if key.key_code == BACKSPACE_CODE
+    )
+
+    assert backspace_key.backspace_presses == 1
+    assert backspace_key.dwell_count == 0
+    assert backspace_key.mean_dwell_ms is None
+
+
+def test_heatmap_ignores_untracked_physical_codes_but_keeps_their_dwell() -> None:
+    """A code outside KEY_CODE_LABELS is not a heatmap entry, only dwell."""
+    heatmap = build_key_heatmap(
+        [
+            AggregatedKeyStat(
+                key_code="KeyA",
+                attempts=20,
+                errors=2,
+                dwell_count=20,
+                dwell_sum_ms=2_000.0,
+            ),
+            AggregatedKeyStat(
+                key_code="ShiftLeft",
+                dwell_count=1,
+                dwell_sum_ms=50.0,
+            ),
+        ],
+        scoped_session_count=1,
+    )
+
+    codes = {key.key_code for key in heatmap.keys}
+    assert codes == set(KEY_CODE_LABELS)
+    assert "ShiftLeft" not in codes
+    assert heatmap.overall_mean_dwell_ms == pytest.approx(2_050.0 / 21)
+
+
+def test_weak_reason_uses_the_configured_margin_and_error_minimum() -> None:
+    """The plain-language reason cannot drift from the classification config."""
+    heatmap = build_key_heatmap(
+        [
+            AggregatedKeyStat(key_code="KeyA", attempts=20, errors=6),
+            AggregatedKeyStat(key_code="KeyB", attempts=180, errors=17),
+        ]
+    )
+    key_a = next(key for key in heatmap.keys if key.key_code == "KeyA")
+
+    assert key_a.classification == WEAK
+    assert f"{HEATMAP_WEAK_MARGIN:.0%}" in key_a.reason
+    assert str(HEATMAP_WEAK_MIN_X) in key_a.reason
