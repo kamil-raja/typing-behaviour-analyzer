@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Keyboard heatmap · Typing Behaviour Analyzer{% endblock %}
+{% block description %}Per-key error rates and timing from your saved sessions, laid out on a US QWERTY keyboard.{% endblock %}
+{% block body_class %}page-keyboard{% endblock %}
+
+{% block head %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/keyboard.css') }}">
+{% endblock %}
+
+{% block content %}
+<section class="keyboard" data-keyboard-root data-scope="{{ default_scope }}" aria-labelledby="keyboard-heading">
+  <header class="results__header">
+    <p class="results__eyebrow">Keyboard</p>
+    <h1 class="page-title" id="keyboard-heading">Keyboard heatmap</h1>
+    <p class="page-lede">Where your mistakes and slow keys cluster across saved sessions. Select a key to pin its details. Colour is a guide, never the only cue.</p>
+  </header>
+
+  <div class="keyboard__scopes" role="group" aria-label="Session scope">
+    <button class="button keyboard__scope" type="button" data-scope-option="last_10" aria-pressed="false">last 10</button>
+    <button class="button keyboard__scope" type="button" data-scope-option="last_30" aria-pressed="false">last 30</button>
+    <button class="button keyboard__scope" type="button" data-scope-option="all" aria-pressed="false">all sessions</button>
+  </div>
+
+  <p class="keyboard__status" role="status" data-keyboard-status>Loading key statistics…</p>
+
+  <div class="keyboard__empty notice" data-keyboard-empty hidden>
+    <p>No sessions yet. Take a typing test to see your keyboard heatmap here.</p>
+    <p class="keyboard__empty-action">
+      <a class="button button--primary" href="{{ url_for('pages.test_page') }}">Take a test</a>
+    </p>
+  </div>
+
+  <div class="keyboard__content" data-keyboard-content hidden>
+    <p class="keyboard__context" data-keyboard-context></p>
+
+    <ul class="keyboard__legend" aria-label="Heatmap legend">
+      <li class="keyboard__legend-item"><span class="keyboard__legend-glyph keyboard__legend-glyph--weak" aria-hidden="true">▲</span>Weak</li>
+      <li class="keyboard__legend-item"><span class="keyboard__legend-glyph keyboard__legend-glyph--average" aria-hidden="true">■</span>Average</li>
+      <li class="keyboard__legend-item"><span class="keyboard__legend-glyph keyboard__legend-glyph--strong" aria-hidden="true">●</span>Strong</li>
+      <li class="keyboard__legend-item"><span class="keyboard__legend-swatch keyboard__legend-swatch--none" aria-hidden="true"></span>Needs more data</li>
+      <li class="keyboard__legend-item"><span class="keyboard__legend-swatch keyboard__legend-swatch--empty" aria-hidden="true"></span>No attempts / not tracked</li>
+    </ul>
+
+    <div class="keyboard__layout">
+      <div class="keyboard__board" data-keyboard-board role="group" aria-label="US QWERTY keyboard heatmap"></div>
+
+      <aside class="keyboard__inspector" data-keyboard-inspector aria-live="polite" aria-labelledby="keyboard-inspector-heading">
+        <h2 class="keyboard__inspector-title" id="keyboard-inspector-heading">Key details</h2>
+        <p class="keyboard__inspector-empty" data-keyboard-inspector-empty>Select a key to see its observations, errors and timing.</p>
+        <div class="keyboard__inspector-body" data-keyboard-inspector-body hidden>
+          <p class="keyboard__inspector-key"><span data-keyboard-inspector-label></span> <span class="keyboard__class" data-keyboard-inspector-class></span></p>
+          <dl class="keyboard__facts" data-keyboard-inspector-facts></dl>
+          <p class="keyboard__reason" data-keyboard-inspector-reason></p>
+        </div>
+      </aside>
+    </div>
+
+    <div class="keyboard__lists">
+      <section class="keyboard__list" aria-labelledby="keyboard-weakest-heading">
+        <h2 class="keyboard__list-title" id="keyboard-weakest-heading">Weakest keys</h2>
+        <p class="keyboard__list-empty" data-keyboard-weak-empty hidden>No keys are classified weak in this scope.</p>
+        <ul class="keyboard__list-items" data-keyboard-weak-list></ul>
+      </section>
+
+      <section class="keyboard__list" aria-labelledby="keyboard-needs-heading">
+        <h2 class="keyboard__list-title" id="keyboard-needs-heading">Needs more data</h2>
+        <p class="keyboard__list-empty" data-keyboard-needs-empty hidden>Every attempted key has enough observations to be classified.</p>
+        <ul class="keyboard__list-items" data-keyboard-needs-list></ul>
+      </section>
+    </div>
+
+    <p class="keyboard__note">A conservative heuristic against your own history — not a hypothesis test. Timing is browser-observed; compare it only on the same machine and browser.</p>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+  <script type="module" src="{{ url_for('static', filename='js/keyboard-heatmap.js') }}"></script>
+{% endblock %}

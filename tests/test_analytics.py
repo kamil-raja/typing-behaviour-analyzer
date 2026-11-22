@@ -9,6 +9,7 @@ draws them, so no metric may be recomputed in the browser.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 import pytest
@@ -644,3 +645,95 @@ def test_keys_route_delegates_sql_and_aggregation() -> None:
     assert "list_scoped_key_stats" in source
     assert "build_key_heatmap" in source
     assert "SELECT" not in source
+
+
+# --- Keyboard heatmap page ------------------------------------------------
+
+
+def test_keyboard_page_markup_and_navigation(client: FlaskClient) -> None:
+    """The keyboard page carries the scopes, board, inspector and lists."""
+    response = client.get("/keyboard")
+
+    assert response.status_code == 200
+    html = response.get_data(as_text=True)
+    assert "data-keyboard-root" in html
+    assert 'data-scope="all"' in html
+    assert 'data-scope-option="last_10"' in html
+    assert 'data-scope-option="last_30"' in html
+    assert 'data-scope-option="all"' in html
+    assert "No sessions yet." in html
+    assert "data-keyboard-board" in html
+    assert "data-keyboard-inspector" in html
+    assert "Weakest keys" in html
+    assert "Needs more data" in html
+    assert "css/keyboard.css" in html
+    assert "js/keyboard-heatmap.js" in html
+    assert 'aria-current="page"' in html
+    assert "http://" not in html
+    assert "https://" not in html
+
+
+def test_keyboard_assets_and_javascript_contract(client: FlaskClient) -> None:
+    """The heatmap consumes the stored API values without recomputing them."""
+    for path in ("/static/css/keyboard.css", "/static/js/keyboard-heatmap.js"):
+        assert client.get(path).status_code == 200, path
+
+    script = client.get("/static/js/keyboard-heatmap.js").get_data(as_text=True)
+    assert "/api/analytics/keys?scope=" in script
+    assert "scoped_session_count" in script
+    assert "baseline_error_rate" in script
+    assert "min_observations" in script
+    assert "overall_mean_dwell_ms" in script
+    assert "backspace_presses" in script
+    assert "ci_low" in script
+    assert "ci_high" in script
+    assert "mean_dwell_ms" in script
+    assert "mean_iki_ms" in script
+    assert "tba:themechange" not in script
+    assert "Math.sqrt" not in script
+    assert "1.96" not in script
+    assert "Math.random" not in script
+    assert "▲" in script
+    assert "■" in script
+    assert "●" in script
+
+    for code in KEY_CODE_LABELS:
+        assert f'"{code}"' in script, code
+
+    css = client.get("/static/css/keyboard.css").get_data(as_text=True)
+    assert re.search(r"#[0-9a-fA-F]{3,8}\b", css) is None
+    for token in ("--heat-bad", "--heat-mid", "--heat-good", "--heat-none"):
+        assert token in css
+    assert ':root[data-theme="dark"]' in css
+
+
+def test_keyboard_page_consumes_the_live_endpoint(
+    app: Flask,
+    client: FlaskClient,
+) -> None:
+    """The page's data contract matches a real classified response."""
+    database = app.config["DATABASE"]
+    _insert_session(
+        database,
+        "s1",
+        "2026-11-14T10:00:00.000Z",
+        net_wpm=10.0,
+        accuracy_pct=90.0,
+        backspace_presses=3,
+    )
+    _insert_key_stat(database, "s1", "KeyA", attempts=20, errors=6)
+    _insert_key_stat(database, "s1", "KeyB", attempts=180, errors=17)
+    _insert_key_stat(
+        database, "s1", "Backspace", dwell_count=1, dwell_sum_ms=250.0
+    )
+
+    body = client.get("/api/analytics/keys?scope=all").get_json()
+    html = client.get("/keyboard").get_data(as_text=True)
+
+    assert f'data-scope="{body["scope"]}"' in html
+    assert body["scoped_session_count"] == 1
+    assert _key(body, "KeyA")["class"] == "weak"
+    assert _key(body, "KeyA")["ci_low"] is not None
+    assert _key(body, "Backspace")["backspace_presses"] == 3
+    assert _key(body, "Backspace")["mean_dwell_ms"] == pytest.approx(250.0)
+

@@ -1,15 +1,17 @@
 # PROGRESS.md — Project Status
 
-> Updated: 2026-11-14
-> Branch: `database-version`
+> Updated: 2026-11-22
+> Branch: `full-project`
 
 ---
 
 ## Current Status
 
-**Phase: Implementation in progress — P0-D1-01 through P0-D1-10 and P0-D2-01 through P0-D2-07 complete.**
+**Phase: Implementation in progress — P0-D1-01 through P0-D1-10, P0-D2-01 through P0-D2-07 and P0-D3-01 through P0-D3-02 complete.**
 
 Documentation, the minimum Flask application foundation, the pytest infrastructure, the replay engine, the metric layer, the key map, the Wilson heatmap heuristic, the session-payload validator, text resolution, the frontend theme foundation, keyboard capture and the live typing screen now exist. All seven golden examples pass through replay, and every replayable fixture matches its hand-computed speed, accuracy, interval, pause, dwell and error-accounting values. Character-keyed observations/IKI and physical-code dwell are merged into `key_code`-keyed `SessionKeyStat` rows. `app/validators.py` enforces the payload schema, ASCII key/code rules, sequence integrity, request limits and the forbidden server-derived end fields. `app/texts.py` resolves passages and deterministic word-mode text and guards all content at startup. The test screen is reachable at `GET /`, loads time-mode words or a passage through the documented text API, and shows clearly-labelled provisional stats. Esc restarts, Tab is never intercepted, focus loss cancels, and a full buffer with errors blocks completion. A finished attempt now submits the complete accepted event sequence to `POST /api/sessions`, which validates it, resolves the text, replays it in the pure engine and returns the authoritative metrics plus a results link. `GET /results/<session_id>` renders those server-computed numbers from the SQLite repository. `GET /api/sessions?limit=&offset=` and `/history` list saved sessions newest first, 25 per page, with row navigation to the results page. The typing screen matches `docs/UI_DESIGN.md` §4: token-based character states, a caret anchored to the second visible line with scroll-follows-caret, a provisional live row that stays hidden until the first keystroke, the full config strip, the documented state messages and focus handling. `GET /api/analytics/progress?scope=` and `/analytics` now show stored net WPM and accuracy as a stacked pair with a server-computed 5-session moving average, a scope toggle, theme-aware Chart.js rendering and an explicit empty state. `GET /api/export/sessions.csv` now downloads every stored session as a UTF-8 BOM CSV in the fixed blueprint column order, with empty cells for unavailable metrics and a leading `'` on formula-like cells. The keyboard heatmap remains.
+
+The keyboard heatmap is reachable at `GET /keyboard` and consumes `GET /api/analytics/keys?scope=` directly. It draws the ANSI 15-unit board as buttons, colours and glyph-marks the stored classifications, pins one key in an inspector with its counts, Wilson interval and timing, and lists the weakest and data-starved keys. Backspace reports presses and dwell without an error class, untracked modifiers stay neutral, and all colour, glyph and text cues come from the stored API values.
 
 ---
 
@@ -219,8 +221,19 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 - [x] Verified with a real HTTP request against an isolated server and temporary database: `201` submit, then `200` download with `text/csv; charset=utf-8`, `attachment; filename="sessions.csv"`, BOM, header plus the persisted row matching the stored metrics
 - [x] `pytest tests/ -q`: **516 passed** (507 previous + 9 new)
 
+### Keyboard heatmap UI (2026-11-22)
+- [x] P0-D3-02: added `GET /keyboard` in `app/routes/pages.py` and switched the nav entry to `url_for('pages.keyboard_page')`
+- [x] Added `app/templates/keyboard.html`: scope toggle, status/empty states, context line, glyph legend, board container, pinned inspector, weakest/needs-data lists and the heuristic/timing note
+- [x] Added `app/static/js/keyboard-heatmap.js`: renders the ANSI 15-unit layout as `<button>` elements, fetches one scope at a time, formats the stored ratios/ms values, pins one key in the inspector and fills both lists; no metric is recomputed and no classification is re-derived
+- [x] Added `app/static/css/keyboard.css`: token-only board, classification colours, neutral untracked keys, pinned outline, inspector and list styles; no hex literals
+- [x] Colour is never the only cue: ▲/■/● glyphs, an `n of 20` count on insufficient keys, the error percentage on classified keys, accessible `aria-label`/`title` text and the inspector's class name
+- [x] Backspace is rendered separately with its press count and dwell; it is never classified. Untracked modifiers render neutral and disabled
+- [x] Added three cases to `tests/test_analytics.py` (page markup/navigation, asset/JS/CSS contracts including every tracked key code, live-endpoint data contract) and added the two new assets to `tests/test_infrastructure.py`
+- [x] Verified in Chromium against an isolated 2-session database on port 5001: 61 board keys (49 tracked + 12 neutral modifiers), one weak key (A, 23.3%), two strong keys (S 3.3%, B 7.0%), Q at 5/20, Backspace at 3 presses / 3 dwell samples / 200 ms, working inspector facts, scope switching, theme recolour, simulated API-error state, real empty-history state and no console errors
+- [x] `pytest tests/ -q`: **548 passed** (545 previous + 3 new)
+
 ### Application code
-- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, P0-D1-09 typing screen, P0-D1-10 session submission, P0-D2-01 schema, P0-D2-02 persistence, P0-D2-03 session retrieval API and the three-tier results page, P0-D2-04 history list and page, P0-D2-05 typing-screen polish, P0-D2-06 progress endpoint and analytics charts, P0-D2-07 sessions CSV export; the heatmap pages are still pending
+- [x] P0-D1-01 scaffold, P0-D1-02 test infrastructure, P0-D1-03 replay, P0-D1-04 metrics, P0-D1-05 key statistics, P0-D1-06 validators, P0-D1-07 text resolution, P0-D1-08 frontend foundation, P0-D1-09 typing screen, P0-D1-10 session submission, P0-D2-01 schema, P0-D2-02 persistence, P0-D2-03 session retrieval API and the three-tier results page, P0-D2-04 history list and page, P0-D2-05 typing-screen polish, P0-D2-06 progress endpoint and analytics charts, P0-D2-07 sessions CSV export, P0-D3-01 historical key aggregation API, P0-D3-02 keyboard heatmap UI
 
 ---
 
@@ -246,7 +259,7 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 | P0-D2-06: Progress endpoint and analytics charts | ✅ Complete (2026-11-14) — progress API (ADR-037) + theme-aware `/analytics` charts |
 | P0-D2-07: sessions.csv export | ✅ Complete (2026-11-14) — BOM CSV exporter (ADR-038) + `GET /api/export/sessions.csv` |
 | P0-D3-01: Key stats aggregation and heatmap API | ✅ Complete (2026-11-21) — historical aggregation in the engine (ADR-039) + `GET /api/analytics/keys?scope=` |
-| P0-D3-02: Heatmap UI | ⬜ Not started |
+| P0-D3-02: Heatmap UI | ✅ Complete (2026-11-22) — `/keyboard`, ANSI board, pinned inspector and summary lists |
 | P0-D3-03: Hygiene tests | ⬜ Not started |
 | P0-D3-04: Manual test pass | ⬜ Not started |
 | P0-D3-05: README and delivery | ⬜ Not started |
@@ -257,9 +270,9 @@ Documentation, the minimum Flask application foundation, the pytest infrastructu
 
 **Day 2:** database-backed persistence, the full results page, the history page, the typing-screen polish pass, the progress charts and the CSV export are complete.
 
-**Day 3 (started):** the historical key aggregation and heatmap API is complete (`GET /api/analytics/keys?scope=`, ADR-039; Backspace press totals and tracked-layout filtering included; `pytest tests/ -q`: **545 passed**).
+**Day 3 (in progress):** the historical key aggregation and heatmap API (`GET /api/analytics/keys?scope=`, ADR-039) and the `/keyboard` heatmap UI are complete; `pytest tests/ -q`: **548 passed**.
 
-Exact next task: **P0-D3-02** — heatmap UI (`/keyboard`, `app/templates/keyboard.html`, `app/static/js/keyboard-heatmap.js`, `app/static/css/keyboard.css`) consuming the new endpoint, then hygiene tests, manual pass and release.
+Exact next task: **P0-D3-03** — hygiene tests (`tests/test_hygiene.py`), then the manual pass and release.
 
 ---
 
@@ -281,6 +294,7 @@ See `docs/DECISIONS.md` for open ambiguities:
 - `docs/UI_DESIGN.md` §7 references `docs/METRICS.md` §6 for the Wilson heuristic; correct during UI documentation cleanup.
 - `README.md` is not yet present; leave for P0-D3-05.
 - `app/routes/` now holds `pages.py`, `api.py` and `exports.py`; all three blueprints are registered in `create_app()`. The CSV export route is the only one that does not return JSON.
-- Base-template nav links for `analytics` and `keyboard` used to 404; `analytics` now resolves to `/analytics` and `history` to `/history`, while `keyboard` remains deliberate until P0-D3-02 (ADR-028).
+- Base-template nav links for `analytics` and `keyboard` used to 404; all four entries now resolve to live pages (`/`, `/analytics`, `/keyboard`, `/history`).
+- The keyboard heatmap is presentation-only: `keyboard-heatmap.js` formats the stored ratios and millisecond values but never recomputes a Wilson interval, baseline or class. Its heat colours are token-only, so a theme switch needs no JavaScript handler.
 - Chart.js is vendored and loaded only by `analytics.html`; no other page carries it.
 - Only the latin font subsets are vendored, matching the ASCII-only application content (ADR-028).

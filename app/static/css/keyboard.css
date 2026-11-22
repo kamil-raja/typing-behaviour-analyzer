@@ -1,0 +1,335 @@
+/* keyboard.css — keyboard heatmap screen.
+ *
+ * Layer responsibility: presentation only. Every colour comes from tokens.css;
+ * the classification colours and glyphs are applied by keyboard-heatmap.js.
+ */
+
+.page-keyboard .site-main {
+  padding-block: var(--space-4) var(--space-6);
+}
+
+.keyboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.keyboard [hidden] {
+  display: none;
+}
+
+.keyboard__scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.keyboard__scope[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.keyboard__scope[aria-pressed="true"]:hover {
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.keyboard__status,
+.keyboard__context,
+.keyboard__note {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.keyboard__context {
+  font-variant-numeric: tabular-nums;
+}
+
+.keyboard__empty-action {
+  margin-top: var(--space-2);
+}
+
+.keyboard__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* Legend */
+.keyboard__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.keyboard__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.keyboard__legend-glyph {
+  font-size: var(--font-size-sm);
+  line-height: 1;
+}
+
+.keyboard__legend-glyph--weak {
+  color: var(--heat-bad);
+}
+
+.keyboard__legend-glyph--average {
+  color: var(--heat-mid);
+}
+
+.keyboard__legend-glyph--strong {
+  color: var(--heat-good);
+}
+
+.keyboard__legend-swatch {
+  width: 1em;
+  height: 1em;
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.keyboard__legend-swatch--none {
+  background: var(--heat-none);
+}
+
+.keyboard__legend-swatch--empty {
+  border-style: dashed;
+  background: var(--surface);
+}
+
+/* Board */
+.keyboard__layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.keyboard__board {
+  overflow-x: auto;
+  padding-block: var(--space-1);
+}
+
+.keyboard__row {
+  display: grid;
+  grid-template-columns: repeat(60, minmax(0, 1fr));
+  gap: var(--space-half);
+  min-width: 720px;
+}
+
+.keyboard__row + .keyboard__row {
+  margin-top: var(--space-half);
+}
+
+.key {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-half);
+  min-width: 0;
+  min-height: 48px;
+  padding: var(--space-half);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.15;
+  transition: background-color var(--motion-fast) ease,
+    border-color var(--motion-fast) ease,
+    color var(--motion-fast) ease;
+}
+
+.key:hover {
+  border-color: var(--text-muted);
+}
+
+.key__label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.key__glyph {
+  font-size: var(--font-size-xs);
+  line-height: 1;
+}
+
+.key__detail {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.key--weak {
+  border-color: var(--heat-bad);
+  background: var(--heat-bad);
+  color: var(--bg);
+}
+
+.key--average {
+  border-color: var(--heat-mid);
+  background: var(--heat-mid);
+  color: var(--text);
+}
+
+.key--strong {
+  border-color: var(--heat-good);
+  background: var(--heat-good);
+  color: var(--text);
+}
+
+/* The heat colours are mid-tone in both palettes; the background token is the
+   readable ink on them in the dark theme. */
+:root[data-theme="dark"] .key--average,
+:root[data-theme="dark"] .key--strong {
+  color: var(--bg);
+}
+
+.key--none {
+  border-color: var(--heat-none);
+  background: var(--heat-none);
+  color: var(--text-muted);
+}
+
+.key--empty {
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.key--untracked {
+  border-style: dashed;
+  background: transparent;
+  cursor: default;
+}
+
+.key--special {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.key--pinned {
+  outline: var(--caret-width) solid var(--accent);
+  outline-offset: var(--focus-ring-offset);
+}
+
+/* Inspector */
+.keyboard__inspector {
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.keyboard__inspector-title {
+  margin-bottom: var(--space-1);
+  font-size: var(--font-size-lg);
+}
+
+.keyboard__inspector-empty {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.keyboard__inspector-key {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1);
+  margin-bottom: var(--space-1);
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+.keyboard__class {
+  color: var(--text-muted);
+  font-family: var(--font-ui);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.keyboard__facts {
+  display: flex;
+  flex-direction: column;
+}
+
+.keyboard__fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding-block: var(--space-half);
+  border-bottom: var(--border-width) solid var(--border);
+}
+
+.keyboard__fact:last-child {
+  border-bottom: 0;
+}
+
+.keyboard__fact dt {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.keyboard__fact dd {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.keyboard__reason {
+  margin-top: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+/* Lists */
+.keyboard__lists {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--border);
+}
+
+.keyboard__list-title {
+  margin-bottom: var(--space-1);
+  font-size: var(--font-size-lg);
+}
+
+.keyboard__list-empty {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.keyboard__list-items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-half);
+}
+
+.keyboard__list-item {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 700px) {
+  .keyboard__lists {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

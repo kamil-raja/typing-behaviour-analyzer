@@ -40,6 +40,15 @@ def analytics_page() -> str:
     )
 
 
+@pages_bp.get("/keyboard")
+def keyboard_page() -> str:
+    """Render the keyboard heatmap screen."""
+    return render_template(
+        "keyboard.html",
+        default_scope=PROGRESS_DEFAULT_SCOPE,
+    )
+
+
 @pages_bp.get("/results/<session_id>")
 def results_page(session_id: str) -> str:
     """Render the persisted server-computed results for one session."""

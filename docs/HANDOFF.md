@@ -30,7 +30,7 @@ Then read this file. Then read `docs/TASKS.md` and start at the first unchecked 
 
 ---
 
-## Current State (as of 2026-11-21)
+## Current State (as of 2026-11-22)
 
 ### Development server (Windows)
 
@@ -51,13 +51,35 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 | Field | Value |
 |---|---|
-| **Branch** | `full-project` (P0-D3-01 work is uncommitted) |
-| **Status** | Uncommitted P0-D3-01 work: modified `app/engine/keys.py`, `app/repository.py`, `app/routes/api.py`, `tests/test_keys.py`, `tests/test_analytics.py`, `docs/DECISIONS.md`, `docs/METRICS.md`, `docs/ARCHITECTURE.md`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md` |
-| **Last commit** | `06fa0d5 merge: integrate database version into full project` |
+| **Branch** | `full-project` (P0-D3-02 work is uncommitted) |
+| **Status** | Uncommitted P0-D3-02 work: new `app/templates/keyboard.html`, `app/static/js/keyboard-heatmap.js`, `app/static/css/keyboard.css`; modified `app/routes/pages.py`, `app/templates/base.html`, `tests/test_analytics.py`, `tests/test_infrastructure.py`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md` |
+| **Last commit** | `e43b99c feat(analytics): add historical key heatmap API` |
 | **Tags** | None yet |
-| **Commit/push** | **None performed by this agent.** Earlier milestones were committed externally (`9c02975`…`1712a54`, then `ba5e7e6` for P0-D2-07 and `06fa0d5` for the merge). This agent composes working-tree changes only. |
+| **Commit/push** | **None performed by this agent.** Earlier milestones were committed externally (`9c02975`…`1712a54`, then `ba5e7e6`, `06fa0d5` and `e43b99c`). This agent composes working-tree changes only. |
 
 `.venv/`, `__pycache__/`, and `instance/` (including `instance/typing.db` created by the first-run check) are ignored and are not part of the working-tree changes.
+
+### Completed This Session — P0-D3-02 Keyboard heatmap UI
+
+| File | Purpose |
+|---|---|
+| `app/routes/pages.py` | `GET /keyboard` renders `keyboard.html` with the default scope |
+| `app/templates/base.html` | `keyboard` nav entry now uses `url_for('pages.keyboard_page')` |
+| `app/templates/keyboard.html` | Scope toggle, status/empty states, context line, glyph legend, board container, pinned inspector, weakest/needs-data lists, heuristic/timing note |
+| `app/static/js/keyboard-heatmap.js` | ANSI 15-unit layout as buttons, scope fetching, value formatting, inspector, lists; presentation only |
+| `app/static/css/keyboard.css` | Token-only board/classification/inspector/list styles; no hex literals |
+| `tests/test_analytics.py` | Three cases: page markup/navigation, asset/JS/CSS contracts (including every tracked key code), live-endpoint data contract |
+| `tests/test_infrastructure.py` | Static asset list includes `keyboard.css` and `keyboard-heatmap.js` |
+
+- **Board:** five ANSI rows totalling 15 units, drawn as `<button>` elements. All 49 tracked codes from `KEY_CODE_LABELS` are fetched from the API; the 12 modifier keys (Tab, Caps, Enter, Shift, Ctrl, Meta, Alt, Menu) are rendered neutral, dashed and disabled. Colour is never the only cue: classified keys carry ▲/■/● plus the error percentage, insufficient attempted keys carry `n of 20`, unattempted keys stay neutral, and every key has an `aria-label`/`title` with attempts, mistakes, error rate and timing.
+- **Inspector:** clicking a key pins it (`aria-pressed`, accent outline) and fills a panel with observations, mistakes, error rate, Wilson interval, dwell count/mean, IKI count/mean, session count and the API `reason`. Backspace pins a reduced panel with presses and dwell only, labelled "Not classified".
+- **Context and lists:** the context line shows the scoped session count, pooled baseline, `min_observations` and overall mean dwell from the API. "Weakest keys" lists classified weak keys by error rate; "Needs more data" lists attempted keys below `min_observations`. Backspace is excluded from both.
+- **Scopes and states:** `last_10`, `last_30` and `all` reuse the analytics toggle pattern. Loading shows "Loading key statistics…"; a failed request shows "Could not load key statistics." and hides the board; `scoped_session_count === 0` shows the documented "No sessions yet." empty state with a Take a test link.
+- **Theme:** the board uses `--heat-bad`, `--heat-mid`, `--heat-good` and `--heat-none` directly, so a theme toggle recolours it without a JS handler. Dark theme switches heat-key ink to `--bg` for contrast.
+- **Layering:** `keyboard-heatmap.js` formats stored ratios/ms values only. It contains no Wilson formula, baseline calculation or classification rule; `tests/test_analytics.py` pins the API field contract and absence of `Math.sqrt`/`1.96`.
+- **Browser verification:** isolated server on port 5001 with a temporary database (2 sessions). 61 board keys = 49 tracked + 12 neutral modifiers; one weak key (A, 23.3%), two strong keys (S 3.3%, B 7.0%), Q at 5/20, Backspace at 3 presses / 3 dwell samples / 200 ms. Inspector facts, scope switching, light/dark recolouring, simulated API failure and real empty-history state all behaved; no console errors (only the pre-existing `/favicon.ico` 404 in the server log).
+- `pytest tests/test_analytics.py tests/test_infrastructure.py -q`: **32 passed**; `pytest tests/ -q`: **548 passed** (545 previous + 3 new).
+- **P0-D3-02 is complete.**
 
 ### Completed This Session — P0-D3-01 Historical key stats aggregation and heatmap API
 
@@ -440,13 +462,14 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 ### Verification
 
-- `python -m pytest tests\ -q`: **545 passed** (8 fixture checks, 4 infrastructure/frontend checks, 18 API/page cases, 24 replay tests, 58 metric tests, 49 key tests, 190 validator cases, 76 text-resolution cases, 41 session/results/history cases, 25 analytics cases, 9 export cases, 25 schema/connection cases, 11 repository tests, 7 typing-screen contracts). The session cases cover detail, history pagination, tooltips, data quality and conditional `Eu`; the analytics cases cover the progress series, chart contracts and the historical key endpoint; the key cases cover aggregation, Wilson classification, Backspace presses and unattempted keys; the export cases cover the CSV contract and layer separation.
+- `python -m pytest tests\ -q`: **548 passed** (8 fixture checks, 4 infrastructure/frontend checks, 18 API/page cases, 24 replay tests, 58 metric tests, 49 key tests, 190 validator cases, 76 text-resolution cases, 41 session/results/history cases, 28 analytics/keyboard cases, 9 export cases, 25 schema/connection cases, 11 repository tests, 7 typing-screen contracts). The session cases cover detail, history pagination, tooltips, data quality and conditional `Eu`; the analytics cases cover the progress series, chart contracts, the historical key endpoint and the keyboard heatmap page; the key cases cover aggregation, Wilson classification, Backspace presses and unattempted keys; the export cases cover the CSV contract and layer separation.
 - `GET /` returns **200** and renders `test.html`. `GET /api/texts/passages`, `/api/texts/passages/p_001` and `/api/texts/words?count=200` all return **200** with the ADR-029 shapes; unknown passages return **404 TEXT_NOT_FOUND**; invalid counts return **422 VALIDATION_ERROR** with `field: "count"`.
 - `POST /api/sessions` returns **201** with the documented `{session_id, metrics, warnings, links}` shape; malformed JSON is **400 INVALID_JSON**, schema failures are **422 VALIDATION_ERROR**, oversized bodies are **413 PAYLOAD_TOO_LARGE**, unknown passages are **404 TEXT_NOT_FOUND**, invalid sequences are **422 INVALID_EVENT_SEQUENCE**, incomplete passages are **422 INCOMPLETE_SESSION**, and short sessions are **422 SESSION_TOO_SHORT**.
 - `GET /api/sessions/<id>` returns **200** with `{ session, metrics, key_stats }` (ADR-035); an unknown id returns **404 NOT_FOUND** with `field: "session_id"`. The route reads only through `SessionRepository.get()`/`get_key_stats()`.
 - `GET /api/sessions?limit=&offset=` returns **200** with `{ items, total }` (ADR-036); `limit` defaults to 25 and accepts 1–100, `offset` defaults to 0; invalid values return **422 VALIDATION_ERROR** with `field` `limit` or `offset`. `GET /history` returns **200**, renders the six-column table shell, the empty state text and the pagination controls, and loads `js/history-page.js`. Chromium check against 30 seeded sessions: 25 rows on page 1, 5 on page 2, correct disabled states, row click opens `/results/<id>`.
 - `GET /api/analytics/progress?scope=` returns **200** with `{ scope, window, sessions }` (ADR-037). Sessions are oldest first and carry both stored values and the server-computed moving averages. `scope` defaults to `all`; `last_10`, `last_30` and `all` are accepted; anything else is **422 VALIDATION_ERROR** with `field: "scope"`. `GET /analytics` returns **200**, renders the scope toggle, both chart sections, the "what to look for" lines, the vendor Chart.js script and `js/analytics-page.js`; the in-app Chromium check against 7 seeded sessions showed both charts, scope switching, theme recolouring without reload, the empty state and navigation, with no console errors.
 - `GET /api/analytics/keys?scope=` returns **200** with `{ scope, method, baseline_error_rate, min_observations, overall_mean_dwell_ms, scoped_session_count, keys }` (ADR-039). Every mapped US-QWERTY key plus Backspace is present; `class` is `weak`/`average`/`strong`/`insufficient`, `error_rate` is a ratio, and Backspace carries its stored press total separately from dwell. Untracked physical codes never become entries. `scope` defaults to `all`; `last_10`, `last_30` and `all` are accepted; anything else is **422 VALIDATION_ERROR** with `field: "scope"`. An empty database returns all keys grey with a null baseline. `tests/test_keys.py` covers the aggregation/classification pipeline and `tests/test_analytics.py` covers the endpoint, including scope isolation.
+- `GET /keyboard` returns **200** and renders the scope toggle, context/legend, board container, pinned inspector, both lists and the heuristic/timing note, and loads `js/keyboard-heatmap.js` and `css/keyboard.css`. Chromium check against a 2-session temporary database: 61 board keys (49 tracked + 12 neutral modifiers), weak/strong/insufficient/Backspace rendering, working inspector, scope switching, theme recolouring, API-error and empty-history states, no console errors.
 - `GET /api/export/sessions.csv` returns **200** with `Content-Type: text/csv; charset=utf-8`, `Content-Disposition: attachment; filename="sessions.csv"`, a UTF-8 BOM, the 14 blueprinted columns and every stored session newest first (ADR-038). NULL metrics are empty cells and formula-like cells get a leading `'`. An empty database returns the BOM plus the header row. The real-HTTP check submitted one session (`201`) and downloaded it with values identical to the stored metrics; `tests/test_exports.py -q` passes 9 cases.
 - `GET /` renders the polished typing screen: config strip (mode/time/passage), live row `hidden` with the `provisional` badge, three-line viewport with `tabindex="0"` and the documented `aria-label`, and the `esc restart` footer. Character states are token-based and `test.css` has no hex colours. The caret is line-box anchored; in the in-app Chromium tab its final geometry was `38.5–77 px` inside the `115.5 px` window (visible line 2) at 90, 120, 150, 180 and 200 typed characters. A wrong full passage shows `Fix the highlighted characters to finish`, Backspace clears it, Esc returns to idle, and a 15 s time-up with three keystrokes shows `Too short to save.` (422, nothing saved). A synthetic `blur` during a run shows `Test cancelled. The window lost focus.` and the next keystroke starts a fresh attempt. Native desktop keystrokes could not be injected (window not visible), so this was DOM-event verification.
 - `GET /results/<id>` renders the persisted server metrics from `SessionRecord`; an unknown id returns **404**. The results template distinguishes unavailable (`—`) from zero, shows `Eu` only when non-zero, and shows the Data quality section only when warnings exist or `zero_interval_count > 0`. Every metric label carries an accessible `?` tooltip (`button[data-metric-help]` + `role="tooltip"`), wired by `app/static/js/results-page.js`.
@@ -465,20 +488,20 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 
 ## Exact Next Task
 
-**Task ID:** P0-D3-02
-**Title:** Heatmap UI
+**Task ID:** P0-D3-03
+**Title:** Hygiene tests
 
 **Scope (from `docs/TASKS.md`):**
-1. Implement `app/templates/keyboard.html`, `app/static/js/keyboard-heatmap.js` and `app/static/css/keyboard.css`.
-2. Render the ANSI 15-unit keyboard as `<button>` elements and colour keys by the `class` returned by `GET /api/analytics/keys?scope=`; grey/no-glyph for `insufficient`.
-3. Legend with text + glyphs, click-to-pin inspector (n, x, error rate + CI, dwell, IKI, class + reason), "Weakest keys" and "Needs more data" lists.
-4. Backspace shows press count and dwell only; non-tracked keys are neutral; colour is never the only cue.
-5. **Acceptance:** heatmap renders; inspector works; `pytest` green.
+1. Implement `tests/test_hygiene.py`.
+2. Check that user-facing heatmap strings (templates and shipped JS literals) contain no "significant" or "statistically"; `METRICS.md` is excluded per blueprint §14.2 regression group 5.
+3. Check that the README (once it exists) and templates contain no µs/microsecond precision claims for timing.
+4. Check that the timing-honesty note is present in the results template.
+5. Check that the API has no bigram/pause/recalculate routes and the schema has no bigram table.
 
 **Starting point:**
-- P0-D3-01 is complete: `GET /api/analytics/keys?scope=` is live (ADR-039); `pytest tests/ -q`: **545 passed**.
-- The API already returns every key with `label`, `class`, `reason`, `session_count`, dwell/IKI values, Backspace's `backspace_presses`, and `null` for unattempted keys. `dwell_flag` is `null` in v1.
-- `/keyboard` still 404s and the nav entry is a literal path (ADR-028); switch it to `url_for('pages.keyboard_page')` when the page endpoint lands.
+- P0-D3-02 is complete: `/keyboard`, `keyboard-heatmap.js` and `keyboard.css` are live and consume `GET /api/analytics/keys?scope=`; `pytest tests/ -q`: **548 passed**.
+- The keyboard page's user-facing copy deliberately says "not a hypothesis test" and never claims significance. Keep it that way.
+- The timing-honesty note currently lives in `app/templates/results.html`; the keyboard page carries its own browser-observed-timing note.
 - Do not commit or push without approval.
 
 ---
@@ -496,7 +519,7 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 9. **Fixture A's IKI values are null by decision.** The §13 row's mean/SD arithmetic conflicts with §8.5; the author ruled §8.5 wins (ADR-023). Do not "fix" this by restoring `800.0`/`0.0`.
 10. **`session_key_stats` rows are now stored** with every session (`executemany` in the same transaction as the session row, ADR-034); `get_key_stats(id)` reads them back ordered by key code.
 11. **The heatmap API is layered (ADR-039).** `SessionRepository.list_scoped_key_stats()` filters the scoped per-session rows, `engine.keys.aggregate_key_stats()` sums them and `build_key_heatmap()` computes the baseline, Wilson intervals and classes. Do not move the `SUM()` into SQL, the classification into the route, or duplicate the formula in JavaScript. `error_rate` is a ratio (0–1), and every mapped key is returned so "never attempted" is explicit.
-12. **`/`, `/history` and `/analytics` are live; `keyboard` still 404s.** Its literal nav path is deliberate until the P0-D3-02 page endpoint lands (ADR-028); then switch that entry to `url_for`. `/history` and `/analytics` already do. The API it will consume is already live.
+12. **All four page routes are live:** `/`, `/analytics`, `/keyboard` and `/history`; the nav uses `url_for` for every entry. The keyboard page consumes `GET /api/analytics/keys?scope=` directly.
 13. **Chart.js is vendored and loaded only by `analytics.html`.** Do not add it to `base.html`; the other pages have no charts.
 14. **Only the latin font subsets are vendored.** All app content is ASCII 32–126. Out-of-subset glyphs use the documented fallback stacks; add subsets only with a new ADR and the corresponding licence/version note.
 15. **The inline theme script and `theme.js` deliberately split responsibilities.** First paint belongs to the inline script; later toggles belong to `theme.js`. Do not move the storage read into the module, or a reload will flash the wrong theme.
@@ -518,6 +541,7 @@ Note: on this machine `.venv\Scripts\python.exe` is a Python Launcher shim, so T
 31. **Native-keyboard verification for the typing screen was not possible in P0-D2-05.** The desktop browser window could not receive real keystrokes, so keyboard states were exercised with DOM `KeyboardEvent`s and the focus-loss path with a synthetic `blur`. Re-run the §14.3 manual checklist with a physical keyboard in P0-D3-04, including Tab/Shift+Tab, held keys, AltGr and the caret line position while scrolling.
 32. **Progress moving averages are server-owned (ADR-037).** `engine.metrics.trailing_moving_average()` is the only implementation: a trailing five-point window inside the selected scope, expanding for the first four points and skipping nulls. `analytics-page.js` must never recompute them. Churn is deliberate: destroy the Chart.js instances before a scope re-render, and update colours through `applyChartTheme()` / `chart.update("none")` on `tba:themechange` rather than re-fetching data.
 33. **The CSV export is layered (ADR-038).** `SessionRepository.list_export_rows()` owns the read query, `app/exporters.py` owns CSV bytes (column order, CRLF, UTF-8 BOM, NULL cells, `= + - @` guard) and `app/routes/exports.py` owns only the response headers. Do not move SQL into `exporters.py` or CSV formatting into the route. The export is the whole stored set, newest first; there is no paging or query parameter.
+34. **The keyboard heatmap is presentation-only.** `keyboard-heatmap.js` lays out the ANSI board and formats the stored ratios/ms values; it must not compute a Wilson interval, baseline or class (the API already did). Heat colours come from `tokens.css`, so theme changes need no JS listener. The board is full-width with the inspector below it; do not put the inspector beside the board unless the container width grows, because 15 key units plus the inspector do not fit inside the 960 px content width. `keyboard.css` scopes a `[hidden] { display: none; }` rule because its flex containers would otherwise override the attribute.
 
 ---
 

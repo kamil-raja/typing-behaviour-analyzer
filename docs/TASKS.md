@@ -244,16 +244,19 @@
 - [ ] **Commit:** `feat(analytics): add historical key stats and heatmap API` — not performed; commits require explicit approval
 
 ### P0-D3-02: Heatmap UI
-- [ ] Implement `app/templates/keyboard.html` and `app/static/js/keyboard-heatmap.js`
-- [ ] ANSI 15-unit keyboard as `<button>` elements
-- [ ] Error mode (default): colour keys by classification; grey/no-glyph for insufficient data
-- [ ] Legend: text + glyphs (▲ weak, ■ average, ● strong, grey = none)
-- [ ] Click-to-pin inspector: n, x, error rate + CI, dwell (n), IKI (n), classification + reason
-- [ ] "Weakest keys" list and "Needs more data" list
-- [ ] Backspace: shows press count and dwell only (no error classification)
-- [ ] Non-tracked keys: neutral (no colour/glyph)
-- [ ] `app/static/css/keyboard.css`
-- [ ] **Acceptance:** heatmap renders; inspector works; colour is not the only cue; `pytest` green
+> **Status (2026-11-22):** Complete — `/keyboard`, client-rendered ANSI board, pinned inspector and summary lists.
+- [x] Implement `app/templates/keyboard.html` and `app/static/js/keyboard-heatmap.js`
+- [x] ANSI 15-unit keyboard as `<button>` elements
+- [x] Error mode (default): colour keys by classification; grey/no-glyph for insufficient data
+- [x] Legend: text + glyphs (▲ weak, ■ average, ● strong, grey = none)
+- [x] Click-to-pin inspector: n, x, error rate + CI, dwell (n), IKI (n), classification + reason
+- [x] "Weakest keys" list and "Needs more data" list
+- [x] Backspace: shows press count and dwell only (no error classification)
+- [x] Non-tracked keys: neutral (no colour/glyph)
+- [x] `app/static/css/keyboard.css`
+- [x] **Acceptance:** heatmap renders; inspector works; colour is not the only cue; `pytest` green. `pytest tests/ -q`: **548 passed** (545 previous + 3 new). Chromium check against an isolated 2-session database: 61 board keys (49 tracked + 12 neutral modifiers), one weak key, two strong keys, one `n of 20` key, Backspace press/dwell inspector, scope switching, theme recolour, error and empty states, no console errors.
+- [x] **Files touched:** `app/routes/pages.py`, `app/templates/base.html`, `app/templates/keyboard.html` (new), `app/static/js/keyboard-heatmap.js` (new), `app/static/css/keyboard.css` (new), `tests/test_analytics.py`, `tests/test_infrastructure.py`, `docs/PROGRESS.md`, `docs/TASKS.md`, `docs/HANDOFF.md`
+- [ ] **Commit:** `feat(keyboard): add interactive keyboard heatmap UI` — not performed; commits require explicit approval
 
 ### P0-D3-03: Hygiene tests
 - [ ] Implement `tests/test_hygiene.py`:

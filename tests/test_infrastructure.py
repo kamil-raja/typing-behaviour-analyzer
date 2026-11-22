@@ -60,6 +60,7 @@ def test_frontend_assets_resolve(client: FlaskClient) -> None:
         "/static/css/base.css",
         "/static/css/test.css",
         "/static/css/components.css",
+        "/static/css/keyboard.css",
         "/static/js/theme.js",
         "/static/js/capture.js",
         "/static/js/typing-engine.js",
@@ -68,6 +69,7 @@ def test_frontend_assets_resolve(client: FlaskClient) -> None:
         "/static/js/history-page.js",
         "/static/js/analytics-page.js",
         "/static/js/charts.js",
+        "/static/js/keyboard-heatmap.js",
         "/static/fonts/OFL-Lexend.txt",
         "/static/fonts/OFL-JetBrainsMono.txt",
     ]
